@@ -52,7 +52,7 @@ jobs:
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
-          KEY_FILE="$HOME/.ssh/id_ed25519"
+          KEY_FILE="$HOME/.ssh/deploy_key"
           KEY_TMP="$(mktemp)"
           printf '%b' "$SERVER_SSH_KEY" | tr -d '\r' > "$KEY_TMP"
 
@@ -61,10 +61,13 @@ jobs:
             exit 1
           fi
 
-          if grep -q "BEGIN" "$KEY_TMP" || grep -q "OPENSSH PRIVATE KEY" "$KEY_TMP"; then
+          if grep -qE '^-----BEGIN (OPENSSH PRIVATE KEY|[A-Z0-9 ]+PRIVATE KEY)-----$' "$KEY_TMP"; then
             mv "$KEY_TMP" "$KEY_FILE"
           else
-            base64 -d "$KEY_TMP" > "$KEY_FILE"
+            if ! base64 -d "$KEY_TMP" > "$KEY_FILE" 2>/dev/null; then
+              echo "SERVER_SSH_KEY is neither a valid PEM/OpenSSH private key nor valid base64."
+              exit 1
+            fi
             rm -f "$KEY_TMP"
           fi
 
@@ -79,7 +82,7 @@ jobs:
 
           SERVER_PORT="${SERVER_PORT:-22}"
 
-          ssh -i "$HOME/.ssh/id_ed25519" -o IdentitiesOnly=yes -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" bash -s <<'REMOTE'
+          ssh -i "$HOME/.ssh/deploy_key" -o IdentitiesOnly=yes -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" bash -s <<'REMOTE'
           set -euo pipefail
 
           if ! sudo -n true 2>/dev/null; then
