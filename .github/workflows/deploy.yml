@@ -52,7 +52,7 @@ jobs:
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
-          KEY_FILE="$HOME/.ssh/deploy_key"
+          KEY_FILE="$HOME/.ssh/id_ed25519"
           KEY_TMP="$(mktemp)"
           printf '%b' "$SERVER_SSH_KEY" | tr -d '\r' > "$KEY_TMP"
 
@@ -79,7 +79,7 @@ jobs:
 
           SERVER_PORT="${SERVER_PORT:-22}"
 
-          ssh -i "$HOME/.ssh/deploy_key" -o IdentitiesOnly=yes -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" bash -s <<'REMOTE'
+          ssh -i "$HOME/.ssh/id_ed25519" -o IdentitiesOnly=yes -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" bash -s <<'REMOTE'
           set -euo pipefail
 
           if ! sudo -n true 2>/dev/null; then
