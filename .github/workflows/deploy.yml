@@ -50,8 +50,26 @@ jobs:
           fi
 
           mkdir -p ~/.ssh
-          printf '%s' "$SERVER_SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
+          chmod 700 ~/.ssh
+
+          KEY_FILE="$HOME/.ssh/deploy_key"
+          KEY_TMP="$(mktemp)"
+          printf '%b' "$SERVER_SSH_KEY" | tr -d '\r' > "$KEY_TMP"
+
+          if grep -q "ENCRYPTED" "$KEY_TMP"; then
+            echo "SSH private key appears to be passphrase-protected (ENCRYPTED). Use an unencrypted deploy key."
+            exit 1
+          fi
+
+          if grep -q "BEGIN" "$KEY_TMP" || grep -q "OPENSSH PRIVATE KEY" "$KEY_TMP"; then
+            mv "$KEY_TMP" "$KEY_FILE"
+          else
+            base64 -d "$KEY_TMP" > "$KEY_FILE"
+            rm -f "$KEY_TMP"
+          fi
+
+          chmod 600 "$KEY_FILE"
+          ssh-keygen -y -f "$KEY_FILE" >/dev/null
           ssh-keyscan -p "$SERVER_PORT" -H "$SERVER_HOST" >> ~/.ssh/known_hosts
 
       - name: Bootstrap server packages (rsync/nginx)
@@ -61,7 +79,7 @@ jobs:
 
           SERVER_PORT="${SERVER_PORT:-22}"
 
-          ssh -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" bash -s <<'REMOTE'
+          ssh -i "$HOME/.ssh/deploy_key" -o IdentitiesOnly=yes -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" bash -s <<'REMOTE'
           set -euo pipefail
 
           if ! sudo -n true 2>/dev/null; then
@@ -92,8 +110,8 @@ jobs:
             exit 1
           fi
 
-          ssh -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" "mkdir -p /tmp/${DOMAIN}-dist"
-          rsync -az --delete -e "ssh -p ${SERVER_PORT}" dist/ "$SERVER_USER@$SERVER_HOST:/tmp/${DOMAIN}-dist/"
+          ssh -i "$HOME/.ssh/deploy_key" -o IdentitiesOnly=yes -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" "mkdir -p /tmp/${DOMAIN}-dist"
+          rsync -az --delete -e "ssh -i $HOME/.ssh/deploy_key -o IdentitiesOnly=yes -p ${SERVER_PORT}" dist/ "$SERVER_USER@$SERVER_HOST:/tmp/${DOMAIN}-dist/"
 
       - name: Provision server + publish + reload nginx
         shell: bash
@@ -108,7 +126,7 @@ jobs:
           CERT="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
           KEY="/etc/letsencrypt/live/${DOMAIN}/privkey.pem"
 
-          ssh -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" bash -s -- \
+          ssh -i "$HOME/.ssh/deploy_key" -o IdentitiesOnly=yes -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" bash -s -- \
             "$DOMAIN" \
             "$WEB_ROOT" \
             "$SITE_CONF" \
