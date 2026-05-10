@@ -180,6 +180,15 @@ jobs:
           sudo rsync -a --delete "/tmp/${DOMAIN}-dist/" "${WEB_ROOT}/"
           sudo chown -R www-data:www-data "/var/www/${DOMAIN}"
 
+          if [ ! -f "${WEB_ROOT}/index.html" ]; then
+            echo "Deploy failed: ${WEB_ROOT}/index.html not found."
+            echo "Listing /tmp/${DOMAIN}-dist:"
+            ls -la "/tmp/${DOMAIN}-dist" || true
+            echo "Listing ${WEB_ROOT}:"
+            sudo ls -la "${WEB_ROOT}" || true
+            exit 1
+          fi
+
           if [ ! -f "$CERT" ] || [ ! -f "$KEY" ]; then
             echo "SSL certificate files not found:"
             echo "  CERT: $CERT"
@@ -207,7 +216,11 @@ jobs:
             index index.html;
           
             location / {
-              try_files \\\$uri \\\$uri/ /index.html;
+              try_files \\\$uri \\\$uri/ @spa;
+            }
+
+            location @spa {
+              try_files /index.html =404;
             }
           }
           EOF
@@ -218,4 +231,6 @@ jobs:
           sudo nginx -t
           sudo systemctl enable --now nginx
           sudo systemctl reload nginx
+
+          sudo tail -n 200 /var/log/nginx/error.log || true
           REMOTE
