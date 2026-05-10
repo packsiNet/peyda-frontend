@@ -56,6 +56,11 @@ jobs:
           KEY_TMP="$(mktemp)"
           printf '%b' "$SERVER_SSH_KEY" | tr -d '\r' > "$KEY_TMP"
 
+          if head -n 1 "$KEY_TMP" | grep -qE '^(ssh-rsa|ssh-ed25519|ecdsa-sha2-)'; then
+            echo "SERVER_SSH_KEY looks like a PUBLIC key. Paste the PRIVATE key into SERVER_SSH_KEY."
+            exit 1
+          fi
+
           if grep -q "ENCRYPTED" "$KEY_TMP"; then
             echo "SSH private key appears to be passphrase-protected (ENCRYPTED). Use an unencrypted deploy key."
             exit 1
@@ -64,7 +69,7 @@ jobs:
           if grep -qE '^-----BEGIN (OPENSSH PRIVATE KEY|[A-Z0-9 ]+PRIVATE KEY)-----$' "$KEY_TMP"; then
             mv "$KEY_TMP" "$KEY_FILE"
           else
-            if ! base64 -d "$KEY_TMP" > "$KEY_FILE" 2>/dev/null; then
+            if ! tr -d '\n\r\t ' < "$KEY_TMP" | base64 -d > "$KEY_FILE" 2>/dev/null; then
               echo "SERVER_SSH_KEY is neither a valid PEM/OpenSSH private key nor valid base64."
               exit 1
             fi
@@ -72,7 +77,13 @@ jobs:
           fi
 
           chmod 600 "$KEY_FILE"
-          ssh-keygen -y -f "$KEY_FILE" >/dev/null
+          if ! ssh-keygen -y -f "$KEY_FILE" >/dev/null 2> "$RUNNER_TEMP/ssh_key_error.log"; then
+            echo "Invalid or unsupported SSH private key format in SERVER_SSH_KEY."
+            echo "Key file type: $(file -b "$KEY_FILE" || true)"
+            echo "ssh-keygen error:"
+            cat "$RUNNER_TEMP/ssh_key_error.log" || true
+            exit 1
+          fi
           ssh-keyscan -p "$SERVER_PORT" -H "$SERVER_HOST" >> ~/.ssh/known_hosts
 
       - name: Bootstrap server packages (rsync/nginx)
@@ -82,7 +93,7 @@ jobs:
 
           SERVER_PORT="${SERVER_PORT:-22}"
 
-          ssh -i "$HOME/.ssh/deploy_key" -o IdentitiesOnly=yes -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" bash -s <<'REMOTE'
+          ssh -i "$HOME/.ssh/deploy_key" -o IdentitiesOnly=yes -o BatchMode=yes -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" bash -s <<'REMOTE'
           set -euo pipefail
 
           if ! sudo -n true 2>/dev/null; then
@@ -113,7 +124,7 @@ jobs:
             exit 1
           fi
 
-          ssh -i "$HOME/.ssh/deploy_key" -o IdentitiesOnly=yes -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" "mkdir -p /tmp/${DOMAIN}-dist"
+          ssh -i "$HOME/.ssh/deploy_key" -o IdentitiesOnly=yes -o BatchMode=yes -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" "mkdir -p /tmp/${DOMAIN}-dist"
           rsync -az --delete -e "ssh -i $HOME/.ssh/deploy_key -o IdentitiesOnly=yes -p ${SERVER_PORT}" dist/ "$SERVER_USER@$SERVER_HOST:/tmp/${DOMAIN}-dist/"
 
       - name: Provision server + publish + reload nginx
@@ -129,7 +140,7 @@ jobs:
           CERT="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
           KEY="/etc/letsencrypt/live/${DOMAIN}/privkey.pem"
 
-          ssh -i "$HOME/.ssh/deploy_key" -o IdentitiesOnly=yes -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" bash -s -- \
+          ssh -i "$HOME/.ssh/deploy_key" -o IdentitiesOnly=yes -o BatchMode=yes -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" bash -s -- \
             "$DOMAIN" \
             "$WEB_ROOT" \
             "$SITE_CONF" \
