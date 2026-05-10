@@ -1,0 +1,176 @@
+name: Deploy (Production)
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      APP_URL: ${{ vars.APP_URL || secrets.APP_URL }}
+      SERVER_HOST: ${{ vars.SERVER_HOST || secrets.SERVER_HOST }}
+      SERVER_PORT: ${{ vars.SERVER_PORT || secrets.SERVER_PORT || '22' }}
+      SERVER_USER: ${{ vars.SERVER_USER || secrets.SERVER_USER }}
+      SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Prepare SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SERVER_PORT="${SERVER_PORT:-22}"
+
+          if [ -z "${SERVER_HOST:-}" ] || [ -z "${SERVER_USER:-}" ] || [ -z "${SERVER_SSH_KEY:-}" ]; then
+            echo "Missing one of required variables/secrets: SERVER_HOST, SERVER_USER, SERVER_SSH_KEY"
+            exit 1
+          fi
+
+          mkdir -p ~/.ssh
+          printf '%s' "$SERVER_SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -p "$SERVER_PORT" -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+
+      - name: Bootstrap server packages (rsync/nginx)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SERVER_PORT="${SERVER_PORT:-22}"
+
+          ssh -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" bash -s <<'REMOTE'
+          set -euo pipefail
+
+          if ! sudo -n true 2>/dev/null; then
+            echo "This deploy requires passwordless sudo for ${USER} on the server."
+            exit 1
+          fi
+
+          export DEBIAN_FRONTEND=noninteractive
+          sudo apt-get update -y
+          sudo apt-get install -y rsync nginx
+REMOTE
+
+      - name: Upload dist to server (staging)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${APP_URL:-}" ]; then
+            echo "Missing APP_URL (GitHub Variable). Example: https://packsi.net"
+            exit 1
+          fi
+
+          SERVER_PORT="${SERVER_PORT:-22}"
+
+          DOMAIN="$(echo "$APP_URL" | sed -E 's#^https?://##; s#/.*##')"
+          if [ -z "$DOMAIN" ]; then
+            echo "Could not derive domain from APP_URL=$APP_URL"
+            exit 1
+          fi
+
+          ssh -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" "mkdir -p /tmp/${DOMAIN}-dist"
+          rsync -az --delete -e "ssh -p ${SERVER_PORT}" dist/ "$SERVER_USER@$SERVER_HOST:/tmp/${DOMAIN}-dist/"
+
+      - name: Provision server + publish + reload nginx
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SERVER_PORT="${SERVER_PORT:-22}"
+
+          DOMAIN="$(echo "$APP_URL" | sed -E 's#^https?://##; s#/.*##')"
+          WEB_ROOT="/var/www/${DOMAIN}/html"
+          SITE_CONF="/etc/nginx/sites-available/${DOMAIN}"
+          CERT="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
+          KEY="/etc/letsencrypt/live/${DOMAIN}/privkey.pem"
+
+          ssh -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" bash -s -- \
+            "$DOMAIN" \
+            "$WEB_ROOT" \
+            "$SITE_CONF" \
+            "$CERT" \
+            "$KEY" <<'REMOTE'
+          set -euo pipefail
+
+          DOMAIN="$1"
+          WEB_ROOT="$2"
+          SITE_CONF="$3"
+          CERT="$4"
+          KEY="$5"
+
+          if ! sudo -n true 2>/dev/null; then
+            echo "This deploy requires passwordless sudo for ${USER} on the server."
+            exit 1
+          fi
+
+          export DEBIAN_FRONTEND=noninteractive
+          sudo apt-get update -y
+          sudo apt-get install -y nginx rsync
+
+          sudo mkdir -p "$WEB_ROOT"
+          sudo rsync -a --delete "/tmp/${DOMAIN}-dist/" "${WEB_ROOT}/"
+          sudo chown -R www-data:www-data "/var/www/${DOMAIN}"
+
+          if [ ! -f "$CERT" ] || [ ! -f "$KEY" ]; then
+            echo "SSL certificate files not found:"
+            echo "  CERT: $CERT"
+            echo "  KEY : $KEY"
+            exit 1
+          fi
+
+          sudo tee "$SITE_CONF" >/dev/null <<EOF
+server {
+  listen 80;
+  listen [::]:80;
+  server_name ${DOMAIN} www.${DOMAIN};
+  return 301 https://\\\$host\\\$request_uri;
+}
+
+server {
+  listen 443 ssl http2;
+  listen [::]:443 ssl http2;
+  server_name ${DOMAIN} www.${DOMAIN};
+
+  ssl_certificate ${CERT};
+  ssl_certificate_key ${KEY};
+
+  root ${WEB_ROOT};
+  index index.html;
+
+  location / {
+    try_files \\\$uri \\\$uri/ /index.html;
+  }
+}
+EOF
+
+          sudo ln -sf "$SITE_CONF" "/etc/nginx/sites-enabled/${DOMAIN}"
+          sudo rm -f /etc/nginx/sites-enabled/default
+
+          sudo nginx -t
+          sudo systemctl enable --now nginx
+          sudo systemctl reload nginx
+REMOTE

@@ -2,6 +2,121 @@ import { useState, useEffect } from 'react';
 
 const THEMES = ['dark', 'pink'];
 
+function SplashLoader() {
+  return (
+    <div className="splash-loader" aria-label="Loading" role="status">
+      <div className="splash-loader__orbs" aria-hidden="true">
+        <div className="splash-loader__orb splash-loader__orb--1" />
+        <div className="splash-loader__orb splash-loader__orb--2" />
+        <div className="splash-loader__orb splash-loader__orb--3" />
+        <div className="splash-loader__orb splash-loader__orb--4" />
+      </div>
+
+      <svg className="splash-loader__dots-bg" viewBox="0 0 380 500" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <pattern id="splashDots" width="24" height="24" patternUnits="userSpaceOnUse">
+            <circle cx="12" cy="12" r="1" fill="#a5b4fc" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#splashDots)" />
+      </svg>
+
+      <svg className="splash-loader__ring splash-loader__ring--outer" viewBox="0 0 360 360" aria-hidden="true">
+        <circle cx="180" cy="180" r="170" fill="none" stroke="rgba(139,92,246,0.25)" strokeWidth="1" strokeDasharray="2 8" />
+        <circle cx="180" cy="180" r="170" fill="none" stroke="rgba(236,72,153,0.4)" strokeWidth="2" strokeDasharray="60 1000" strokeLinecap="round" />
+      </svg>
+
+      <svg className="splash-loader__ring splash-loader__ring--inner" viewBox="0 0 290 290" aria-hidden="true">
+        <circle cx="145" cy="145" r="135" fill="none" stroke="rgba(34,211,238,0.2)" strokeWidth="1" strokeDasharray="1 6" />
+        <circle cx="145" cy="145" r="135" fill="none" stroke="rgba(34,211,238,0.5)" strokeWidth="2" strokeDasharray="40 1000" strokeLinecap="round" />
+      </svg>
+
+      <div className="splash-loader__icon-orbit" aria-hidden="true">
+        <div className="splash-icon splash-icon--top">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="5" width="20" height="14" rx="2" />
+            <line x1="2" y1="10" x2="22" y2="10" />
+          </svg>
+        </div>
+        <div className="splash-icon splash-icon--right">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0 0 4h16v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7" />
+            <circle cx="17" cy="13" r="1.5" fill="currentColor" stroke="none" />
+          </svg>
+        </div>
+        <div className="splash-icon splash-icon--bottom">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1" />
+            <rect x="14" y="3" width="7" height="7" rx="1" />
+            <rect x="3" y="14" width="7" height="7" rx="1" />
+            <path d="M14 14h3v3M21 14v3M14 17v4h3M17 21h4" />
+          </svg>
+        </div>
+        <div className="splash-icon splash-icon--left">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="6" width="20" height="12" rx="2" />
+            <circle cx="12" cy="12" r="2.5" />
+            <path d="M6 10v4M18 10v4" />
+          </svg>
+        </div>
+      </div>
+
+      <div className="splash-loader__icon-orbit splash-loader__icon-orbit--inner" aria-hidden="true">
+        <div className="splash-icon--sm tr">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M9.5 9.5h3.5a1.5 1.5 0 0 1 0 3H9.5M9.5 12.5h4a1.5 1.5 0 0 1 0 3H9.5M11 7v2M11 15v2" />
+          </svg>
+        </div>
+        <div className="splash-icon--sm br">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5 3v18l2-1.5L9 21l2-1.5L13 21l2-1.5L17 21l2-1.5V3" />
+            <line x1="8" y1="8" x2="16" y2="8" />
+            <line x1="8" y1="12" x2="16" y2="12" />
+            <line x1="8" y1="16" x2="13" y2="16" />
+          </svg>
+        </div>
+        <div className="splash-icon--sm bl">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />
+            <path d="M9 12l2 2 4-4" />
+          </svg>
+        </div>
+        <div className="splash-icon--sm tl">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" />
+          </svg>
+        </div>
+      </div>
+
+      <div className="splash-loader__core">
+        <div className="splash-loader__core-glow" aria-hidden="true" />
+        <div className="splash-loader__core-card">
+          <div className="splash-loader__brand">PAYDA</div>
+          <div className="splash-loader__tagline">payment services</div>
+          <div className="splash-loader__dots" aria-hidden="true">
+            <span /><span /><span />
+          </div>
+        </div>
+      </div>
+
+      <div className="splash-loader__progress-wrap">
+        <div className="splash-loader__progress-text">در حال پردازش پرداخت</div>
+        <div className="splash-loader__progress-bar" aria-hidden="true">
+          <div className="splash-loader__progress-fill" />
+        </div>
+      </div>
+
+      <div className="splash-loader__star s1" aria-hidden="true" />
+      <div className="splash-loader__star s2" aria-hidden="true" />
+      <div className="splash-loader__star s3" aria-hidden="true" />
+      <div className="splash-loader__star s4" aria-hidden="true" />
+      <div className="splash-loader__star s5" aria-hidden="true" />
+      <div className="splash-loader__star s6" aria-hidden="true" />
+    </div>
+  );
+}
+
 function ThemeToggle({ themeIdx, onToggle }) {
   const current = THEMES[themeIdx];
 
@@ -379,6 +494,12 @@ export default function App() {
   const [themeIdx, setThemeIdx] = useState(0);
   const [layoutMode, setLayoutMode] = useState('tile');
   const [tallScreen, setTallScreen] = useState(() => window.matchMedia('(min-height: 500px)').matches);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 4000);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', THEMES[themeIdx]);
@@ -405,6 +526,10 @@ export default function App() {
     }
     return out;
   })();
+
+  if (loading) {
+    return <SplashLoader />;
+  }
 
   return (
     <>
