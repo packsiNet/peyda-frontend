@@ -21,6 +21,7 @@ jobs:
       SERVER_PORT: ${{ vars.SERVER_PORT || secrets.SERVER_PORT || '22' }}
       SERVER_USER: ${{ vars.SERVER_USER || secrets.SERVER_USER }}
       SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
+      SERVER_SSH_KEY_PASSPHRASE: ${{ secrets.SERVER_SSH_KEY_PASSPHRASE }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -78,11 +79,23 @@ jobs:
 
           chmod 600 "$KEY_FILE"
           if ! ssh-keygen -y -f "$KEY_FILE" >/dev/null 2> "$RUNNER_TEMP/ssh_key_error.log"; then
-            echo "Invalid or unsupported SSH private key format in SERVER_SSH_KEY."
-            echo "Key file type: $(file -b "$KEY_FILE" || true)"
-            echo "ssh-keygen error:"
-            cat "$RUNNER_TEMP/ssh_key_error.log" || true
-            exit 1
+            if [ -n "${SERVER_SSH_KEY_PASSPHRASE:-}" ]; then
+              if ! ssh-keygen -p -P "$SERVER_SSH_KEY_PASSPHRASE" -N "" -f "$KEY_FILE" >/dev/null 2> "$RUNNER_TEMP/ssh_key_decrypt_error.log"; then
+                echo "Failed to decrypt SSH private key with SERVER_SSH_KEY_PASSPHRASE."
+                echo "Key file type: $(file -b "$KEY_FILE" || true)"
+                echo "ssh-keygen error:"
+                cat "$RUNNER_TEMP/ssh_key_decrypt_error.log" || true
+                exit 1
+              fi
+              ssh-keygen -y -f "$KEY_FILE" >/dev/null
+            else
+              echo "Invalid, corrupted, or passphrase-protected SSH private key in SERVER_SSH_KEY."
+              echo "Key file type: $(file -b "$KEY_FILE" || true)"
+              echo "ssh-keygen error:"
+              cat "$RUNNER_TEMP/ssh_key_error.log" || true
+              echo "If your key has a passphrase, add it as GitHub Secret: SERVER_SSH_KEY_PASSPHRASE"
+              exit 1
+            fi
           fi
           ssh-keyscan -p "$SERVER_PORT" -H "$SERVER_HOST" >> ~/.ssh/known_hosts
 
