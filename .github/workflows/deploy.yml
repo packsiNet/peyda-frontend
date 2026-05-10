@@ -116,7 +116,7 @@ jobs:
 
           export DEBIAN_FRONTEND=noninteractive
           sudo apt-get update -y
-          sudo apt-get install -y rsync nginx
+          sudo apt-get install -y rsync nginx curl
           REMOTE
 
       - name: Upload dist to server (staging)
@@ -174,7 +174,7 @@ jobs:
 
           export DEBIAN_FRONTEND=noninteractive
           sudo apt-get update -y
-          sudo apt-get install -y nginx rsync
+          sudo apt-get install -y nginx rsync curl
 
           sudo mkdir -p "$WEB_ROOT"
           sudo rsync -a --delete "/tmp/${DOMAIN}-dist/" "${WEB_ROOT}/"
@@ -201,7 +201,7 @@ jobs:
             listen 80;
             listen [::]:80;
             server_name ${DOMAIN} www.${DOMAIN};
-            return 301 https://\\\$host\\\$request_uri;
+            return 301 https://\$host\$request_uri;
           }
           
           server {
@@ -217,15 +217,19 @@ jobs:
             root ${WEB_ROOT};
             index index.html;
 
+            location = /index.html {
+              add_header Cache-Control "no-store";
+            }
+
             location ^~ /assets/ {
-              try_files \\\$uri =404;
+              try_files \$uri =404;
               access_log off;
               expires 1y;
               add_header Cache-Control "public, immutable";
             }
           
             location / {
-              try_files \\\$uri \\\$uri/ @spa;
+              try_files \$uri \$uri/ @spa;
             }
 
             location @spa {
@@ -243,14 +247,39 @@ jobs:
 
           echo "Healthcheck (headers):"
           curl -skI "https://${DOMAIN}/" | sed -n '1,20p' || true
+          echo "Healthcheck (index preview):"
+          curl -sk "https://${DOMAIN}/" | sed -n '1,40p' || true
 
-          ASSET_PATH="$(grep -oE '/assets/[^\" ]+\\.(js|mjs)' \"${WEB_ROOT}/index.html\" | head -n 1 || true)"
+          ASSET_PATH="$(grep -oE '/assets/[^" ]+\.(js|mjs)' "${WEB_ROOT}/index.html" | head -n 1 || true)"
           if [ -n "${ASSET_PATH}" ]; then
             echo "Healthcheck asset: ${ASSET_PATH}"
             curl -skI "https://${DOMAIN}${ASSET_PATH}" | sed -n '1,20p' || true
+            if [ ! -f "${WEB_ROOT}${ASSET_PATH}" ]; then
+              echo "Asset referenced by index.html is missing on disk: ${WEB_ROOT}${ASSET_PATH}"
+              echo "Listing ${WEB_ROOT}/assets:"
+              ls -la "${WEB_ROOT}/assets" || true
+              exit 1
+            fi
+
+            ASSET_BODY="$(mktemp)"
+            ASSET_STATUS="$(curl -sk -o "${ASSET_BODY}" -w '%{http_code}' "https://${DOMAIN}${ASSET_PATH}")"
+            ASSET_CT="$(curl -skI "https://${DOMAIN}${ASSET_PATH}" | awk -F': ' 'tolower($1)=="content-type"{print $2}' | tr -d '\r' | head -n 1)"
+            echo "Asset status: ${ASSET_STATUS}"
+            echo "Asset content-type: ${ASSET_CT}"
+            echo "Asset first line:"
+            head -n 1 "${ASSET_BODY}" || true
+            if [ "${ASSET_STATUS}" != "200" ]; then
+              echo "Asset is not reachable over HTTPS."
+              exit 1
+            fi
+            if ! echo "${ASSET_CT}" | grep -qi 'javascript'; then
+              echo "Asset is not served as JavaScript. This usually causes a blank page."
+              exit 1
+            fi
           else
             echo "Could not detect JS asset path from ${WEB_ROOT}/index.html"
             sed -n '1,60p' "${WEB_ROOT}/index.html" || true
+            exit 1
           fi
 
           sudo tail -n 200 /var/log/nginx/error.log || true
