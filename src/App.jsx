@@ -508,12 +508,8 @@ export default function App() {
   useEffect(() => {
     const mq = window.matchMedia('(min-height: 500px)');
     const handler = (e) => setTallScreen(e.matches);
-    if (typeof mq.addEventListener === 'function') {
-      mq.addEventListener('change', handler);
-      return () => mq.removeEventListener('change', handler);
-    }
-    mq.addListener(handler);
-    return () => mq.removeListener(handler);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
   }, []);
 
   const totalReceived = RECEIVED.reduce((sum, item) => sum + item.amount, 0);
