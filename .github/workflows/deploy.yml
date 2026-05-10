@@ -208,12 +208,21 @@ jobs:
             listen 443 ssl http2;
             listen [::]:443 ssl http2;
             server_name ${DOMAIN} www.${DOMAIN};
+
+            include /etc/nginx/mime.types;
           
             ssl_certificate ${CERT};
             ssl_certificate_key ${KEY};
           
             root ${WEB_ROOT};
             index index.html;
+
+            location ^~ /assets/ {
+              try_files \\\$uri =404;
+              access_log off;
+              expires 1y;
+              add_header Cache-Control "public, immutable";
+            }
           
             location / {
               try_files \\\$uri \\\$uri/ @spa;
@@ -231,6 +240,18 @@ jobs:
           sudo nginx -t
           sudo systemctl enable --now nginx
           sudo systemctl reload nginx
+
+          echo "Healthcheck (headers):"
+          curl -skI "https://${DOMAIN}/" | sed -n '1,20p' || true
+
+          ASSET_PATH="$(grep -oE '/assets/[^\" ]+\\.(js|mjs)' \"${WEB_ROOT}/index.html\" | head -n 1 || true)"
+          if [ -n "${ASSET_PATH}" ]; then
+            echo "Healthcheck asset: ${ASSET_PATH}"
+            curl -skI "https://${DOMAIN}${ASSET_PATH}" | sed -n '1,20p' || true
+          else
+            echo "Could not detect JS asset path from ${WEB_ROOT}/index.html"
+            sed -n '1,60p' "${WEB_ROOT}/index.html" || true
+          fi
 
           sudo tail -n 200 /var/log/nginx/error.log || true
           REMOTE
