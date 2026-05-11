@@ -2111,10 +2111,14 @@ button { font-family: inherit; }
 
 .id-camera-btn__input {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  width: 1px;
+  height: 1px;
   opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.id-camera-btn {
   cursor: pointer;
 }
 

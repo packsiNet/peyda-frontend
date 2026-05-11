@@ -775,23 +775,21 @@ function ProfileModal({ onClose, onIdentity }) {
   );
 }
 
-function CameraCapture({ label, capture, icon, onCapture, preview }) {
-  const inputRef = useRef(null);
-
+function CameraCapture({ inputId, label, capture, icon, onCapture, preview }) {
   function handleChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
     const url = URL.createObjectURL(file);
     onCapture(url);
+    e.target.value = '';
   }
 
   return (
     <div className="id-camera-card">
       <span className="id-camera-card__label">{label}</span>
-      <button
-        type="button"
+      <label
+        htmlFor={inputId}
         className={`id-camera-btn${preview ? ' id-camera-btn--captured' : ''}`}
-        onClick={() => inputRef.current?.click()}
       >
         {preview ? (
           <>
@@ -804,16 +802,15 @@ function CameraCapture({ label, capture, icon, onCapture, preview }) {
             <span className="id-camera-btn__text">Tap to open camera</span>
           </>
         )}
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
-          capture={capture}
-          className="id-camera-btn__input"
-          onChange={handleChange}
-          tabIndex={-1}
-        />
-      </button>
+      </label>
+      <input
+        id={inputId}
+        type="file"
+        accept="image/*"
+        capture={capture}
+        className="id-camera-btn__input"
+        onChange={handleChange}
+      />
     </div>
   );
 }
@@ -997,6 +994,7 @@ function IdentityContent({ onDone }) {
         <p className="identity-section__label">Photo Verification</p>
         <div className="id-cameras">
           <CameraCapture
+            inputId="cam-doc"
             label="Document Photo"
             capture="environment"
             preview={docPhoto}
@@ -1011,6 +1009,7 @@ function IdentityContent({ onDone }) {
             }
           />
           <CameraCapture
+            inputId="cam-selfie"
             label="Selfie Photo"
             capture="user"
             preview={selfiePhoto}
