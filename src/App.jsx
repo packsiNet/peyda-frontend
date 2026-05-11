@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo, useCallback, useMemo } from 'react';
 
 const THEMES = ['dark', 'pink'];
 
@@ -148,7 +148,7 @@ const METHOD_META = {
   SEPA:    { color: '#c89262', label: 'SEPA',    country: 'EU' },
 };
 
-function TxTile({ item, type, onTap }) {
+const TxTile = memo(function TxTile({ item, type, onTap }) {
   const isReceived = type === 'received';
   const sign = isReceived ? '+' : '−';
   const meta = METHOD_META[item.method] || { country: 'Global' };
@@ -181,7 +181,7 @@ function TxTile({ item, type, onTap }) {
       </footer>
     </article>
   );
-}
+});
 
 const FILTERS = [
   { id: 'all', label: 'All', cls: '' },
@@ -275,7 +275,7 @@ function FilterBar({ active, onChange, layout, onToggleLayout }) {
   );
 }
 
-function TxListItem({ item, type, onTap }) {
+const TxListItem = memo(function TxListItem({ item, type, onTap }) {
   const isReceived = type === 'received';
   const sign = isReceived ? '+' : '−';
   const meta = METHOD_META[item.method] || { country: 'Global' };
@@ -317,7 +317,7 @@ function TxListItem({ item, type, onTap }) {
       </div>
     </article>
   );
-}
+});
 
 function DetailSheet({ item, type, onClose }) {
   const isReceived = type === 'received';
@@ -588,7 +588,7 @@ function ExchangeModal({ onClose }) {
                       {/* <span className="input-wrap__prefix input-wrap__prefix--rial">﷼</span> */}
                       <input
                         className="input input--prefixed price-col__input"
-                        style={{ paddingLeft: prefixPadding('TMN') }}
+                        // style={{ paddingLeft: prefixPadding('TMN') }}
                         type="number"
                         placeholder="0"
                         inputMode="numeric"
@@ -725,10 +725,10 @@ export default function App() {
     return () => mq.removeEventListener('change', handler);
   }, []);
 
-  const totalReceived = RECEIVED.reduce((sum, item) => sum + item.amount, 0);
-  const totalSent = SENT.reduce((sum, item) => sum + item.amount, 0);
+  const totalReceived = useMemo(() => RECEIVED.reduce((sum, item) => sum + item.amount, 0), []);
+  const totalSent = useMemo(() => SENT.reduce((sum, item) => sum + item.amount, 0), []);
 
-  const tiles = (() => {
+  const tiles = useMemo(() => {
     if (filter === 'received') return RECEIVED.map((data) => ({ data, type: 'received' }));
     if (filter === 'sent') return SENT.map((data) => ({ data, type: 'sent' }));
     const out = [];
@@ -738,7 +738,9 @@ export default function App() {
       if (SENT[i]) out.push({ data: SENT[i], type: 'sent' });
     }
     return out;
-  })();
+  }, [filter]);
+
+  const handleTap = useCallback((item, type) => setDetail({ item, type }), []);
 
   if (loading) {
     return <SplashLoader />;
@@ -797,7 +799,7 @@ export default function App() {
                     key={`${type}-${data.id}`}
                     item={data}
                     type={type}
-                    onTap={(item, t) => setDetail({ item, type: t })}
+                    onTap={handleTap}
                   />
                 ))}
               </div>
@@ -807,13 +809,13 @@ export default function App() {
               <div className="p2p-list-col" role="list" aria-label="Received">
                 <p className="p2p-list-col__head p2p-list-col__head--r">Received</p>
                 {RECEIVED.map((data) => (
-                  <TxListItem key={data.id} item={data} type="received" onTap={(item, t) => setDetail({ item, type: t })} />
+                  <TxListItem key={data.id} item={data} type="received" onTap={handleTap} />
                 ))}
               </div>
               <div className="p2p-list-col" role="list" aria-label="Sent">
                 <p className="p2p-list-col__head p2p-list-col__head--s">Sent</p>
                 {SENT.map((data) => (
-                  <TxListItem key={data.id} item={data} type="sent" onTap={(item, t) => setDetail({ item, type: t })} />
+                  <TxListItem key={data.id} item={data} type="sent" onTap={handleTap} />
                 ))}
               </div>
             </div>
@@ -824,7 +826,7 @@ export default function App() {
                   key={`${type}-${data.id}`}
                   item={data}
                   type={type}
-                  onTap={(item, t) => setDetail({ item, type: t })}
+                  onTap={handleTap}
                 />
               ))}
             </div>
