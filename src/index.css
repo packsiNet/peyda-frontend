@@ -1415,6 +1415,110 @@ body::after {
 }
 
 /* ── Receiver Form ──────────────────────────────── */
+.rcv-add-btn {
+  width: 100%;
+  height: 42px;
+  border-radius: 12px;
+  border: 1.5px dashed rgba(245, 145, 72, 0.4);
+  background: rgba(245, 145, 72, 0.05);
+  color: var(--amber-deep);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  transition: background 0.18s, border-color 0.18s;
+}
+.rcv-add-btn:hover {
+  background: rgba(245, 145, 72, 0.11);
+  border-color: var(--amber);
+}
+
+.rcv-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rcv-item {
+  width: 100%;
+  padding: 11px 13px;
+  border-radius: 12px;
+  border: 1px solid rgba(245, 145, 72, 0.18);
+  background: linear-gradient(135deg, rgba(245, 145, 72, 0.06) 0%, rgba(217, 122, 140, 0.04) 100%);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  text-align: left;
+  font-family: inherit;
+  transition: border-color 0.15s, background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.rcv-item:hover {
+  background: linear-gradient(135deg, rgba(245, 145, 72, 0.11) 0%, rgba(217, 122, 140, 0.08) 100%);
+  border-color: rgba(245, 145, 72, 0.32);
+}
+.rcv-item--selected {
+  border-color: var(--amber);
+  background: rgba(245, 145, 72, 0.10);
+}
+
+.rcv-item__radio {
+  flex-shrink: 0;
+  color: var(--ink-soft);
+  display: flex;
+  align-items: center;
+}
+.rcv-item--selected .rcv-item__radio {
+  color: var(--amber-deep);
+}
+
+.rcv-item__info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.rcv-item__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.rcv-item__iban {
+  font-size: 11px;
+  color: var(--ink-soft);
+  font-family: monospace;
+  letter-spacing: 0.03em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rcv-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  color: var(--ink-mute);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 12px;
+  letter-spacing: 0.02em;
+  transition: color 0.15s;
+}
+.rcv-back-btn:hover {
+  color: var(--ink-soft);
+}
+
 .receiver-form { display: flex; flex-direction: column; gap: 14px; }
 
 .receiver-form__row {

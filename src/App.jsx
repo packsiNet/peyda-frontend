@@ -396,6 +396,11 @@ const EXCHANGE_METHODS = ['Revolut', 'Zelle', 'Paypal'];
 const BONBAST_RATE = 160_000;
 const URGENT_RATE  = 150_000;
 
+const SAVED_RECEIVERS = [
+  { id: 'r1', firstName: 'Shahram', lastName: 'Oweisy',  iban: 'IR837489279472984729847296' },
+  { id: 'r2', firstName: 'Reza',    lastName: 'Mohebi',  iban: 'IR678732647826487687326450' },
+];
+
 function prefixPadding(symbol) {
   if (symbol.length >= 3) return '52px';
   if (symbol.length === 2) return '40px';
@@ -415,6 +420,8 @@ function ExchangeModal({ onClose }) {
   const [showCustomInput, setShowCustomInput] = useState(false);
 
   // Step 2 state
+  const [showNewReceiverForm, setShowNewReceiverForm] = useState(false);
+  const [selectedReceiverId, setSelectedReceiverId] = useState(null);
   const [rcvFirstName, setRcvFirstName] = useState('');
   const [rcvLastName, setRcvLastName] = useState('');
   const [rcvNationalId, setRcvNationalId] = useState('');
@@ -448,7 +455,9 @@ function ExchangeModal({ onClose }) {
   };
 
   const step1Valid = !!amount && methods.length > 0;
-  const step2Valid = rcvFirstName.trim() && rcvLastName.trim() && rcvNationalId.trim() && rcvMobile.trim() && rcvIban.trim();
+  const step2Valid = showNewReceiverForm
+    ? rcvFirstName.trim() && rcvLastName.trim() && rcvNationalId.trim() && rcvMobile.trim() && rcvIban.trim()
+    : !!selectedReceiverId;
 
   const amtNum = parseFloat(amount) || 0;
   const rateNum = parseFloat(proposedAmount) || 0;
@@ -692,76 +701,122 @@ function ExchangeModal({ onClose }) {
               </div>
             </div>
 
-            <div className="exchange-modal__section">
-              <div className="receiver-form">
-                <div className="receiver-form__row">
+            {showNewReceiverForm ? (
+              <div className="exchange-modal__section">
+                <button
+                  type="button"
+                  className="rcv-back-btn"
+                  onClick={() => setShowNewReceiverForm(false)}
+                >
+                  <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M8 2L4 6.5 8 11" />
+                  </svg>
+                  Saved Receivers
+                </button>
+                <div className="receiver-form">
+                  <div className="receiver-form__row">
+                    <div className="receiver-form__field">
+                      <label className="input-label">First Name</label>
+                      <input
+                        className="input"
+                        type="text"
+                        placeholder="First name"
+                        value={rcvFirstName}
+                        onChange={(e) => setRcvFirstName(e.target.value)}
+                      />
+                    </div>
+                    <div className="receiver-form__field">
+                      <label className="input-label">Last Name</label>
+                      <input
+                        className="input"
+                        type="text"
+                        placeholder="Last name"
+                        value={rcvLastName}
+                        onChange={(e) => setRcvLastName(e.target.value)}
+                      />
+                    </div>
+                  </div>
                   <div className="receiver-form__field">
-                    <label className="input-label">First Name</label>
+                    <label className="input-label">National ID</label>
                     <input
                       className="input"
                       type="text"
-                      placeholder="First name"
-                      value={rcvFirstName}
-                      onChange={(e) => setRcvFirstName(e.target.value)}
+                      inputMode="numeric"
+                      placeholder="10-digit national ID"
+                      maxLength={10}
+                      value={rcvNationalId}
+                      onChange={(e) => setRcvNationalId(e.target.value.replace(/\D/g, ''))}
                     />
                   </div>
                   <div className="receiver-form__field">
-                    <label className="input-label">Last Name</label>
+                    <label className="input-label">Mobile Number</label>
                     <input
                       className="input"
-                      type="text"
-                      placeholder="Last name"
-                      value={rcvLastName}
-                      onChange={(e) => setRcvLastName(e.target.value)}
+                      type="tel"
+                      inputMode="numeric"
+                      placeholder="09xxxxxxxxx"
+                      maxLength={11}
+                      value={rcvMobile}
+                      onChange={(e) => setRcvMobile(e.target.value.replace(/\D/g, ''))}
                     />
                   </div>
-                </div>
-
-                <div className="receiver-form__field">
-                  <label className="input-label">National ID</label>
-                  <input
-                    className="input"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="10-digit national ID"
-                    maxLength={10}
-                    value={rcvNationalId}
-                    onChange={(e) => setRcvNationalId(e.target.value.replace(/\D/g, ''))}
-                  />
-                </div>
-
-                <div className="receiver-form__field">
-                  <label className="input-label">Mobile Number</label>
-                  <input
-                    className="input"
-                    type="tel"
-                    inputMode="numeric"
-                    placeholder="09xxxxxxxxx"
-                    maxLength={11}
-                    value={rcvMobile}
-                    onChange={(e) => setRcvMobile(e.target.value.replace(/\D/g, ''))}
-                  />
-                </div>
-
-                <div className="receiver-form__field">
-                  <label className="input-label">IBAN</label>
-                  <input
-                    className="input receiver-form__iban"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="IR000000000000000000000000"
-                    maxLength={26}
-                    value={rcvIban}
-                    onChange={(e) => {
-                      let v = e.target.value.toUpperCase();
-                      if (!v.startsWith('IR')) v = 'IR' + v.replace(/[^0-9]/g, '');
-                      else v = 'IR' + v.slice(2).replace(/[^0-9]/g, '');
-                      setRcvIban(v.slice(0, 26));
-                    }}
-                  />
+                  <div className="receiver-form__field">
+                    <label className="input-label">IBAN</label>
+                    <input
+                      className="input receiver-form__iban"
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="IR000000000000000000000000"
+                      maxLength={26}
+                      value={rcvIban}
+                      onChange={(e) => {
+                        let v = e.target.value.toUpperCase();
+                        if (!v.startsWith('IR')) v = 'IR' + v.replace(/[^0-9]/g, '');
+                        else v = 'IR' + v.slice(2).replace(/[^0-9]/g, '');
+                        setRcvIban(v.slice(0, 26));
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="exchange-modal__section">
+                <button
+                  type="button"
+                  className="rcv-add-btn"
+                  onClick={() => setShowNewReceiverForm(true)}
+                >
+                  <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M6.5 2v9M2 6.5h9" />
+                  </svg>
+                  Add New Receiver
+                </button>
+                <div className="rcv-list">
+                  {SAVED_RECEIVERS.map((r) => {
+                    const isSelected = selectedReceiverId === r.id;
+                    return (
+                      <button
+                        key={r.id}
+                        type="button"
+                        className={`rcv-item${isSelected ? ' rcv-item--selected' : ''}`}
+                        onClick={() => setSelectedReceiverId(r.id)}
+                      >
+                        <span className="rcv-item__radio" aria-hidden="true">
+                          {isSelected
+                            ? <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8.25" stroke="currentColor" strokeWidth="1.5"/><circle cx="9" cy="9" r="4.5" fill="currentColor"/></svg>
+                            : <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8.25" stroke="currentColor" strokeWidth="1.5"/></svg>
+                          }
+                        </span>
+                        <span className="rcv-item__info">
+                          <span className="rcv-item__name">{r.firstName} {r.lastName}</span>
+                          <span className="rcv-item__iban">{r.iban}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div className="sheet-actions">
               <button type="button" className="btn btn--ghost" onClick={() => setStep(1)}>
