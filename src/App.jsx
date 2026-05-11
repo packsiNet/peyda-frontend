@@ -1201,12 +1201,22 @@ export default function App() {
     if (!tg) return;
     tg.ready();
     tg.expand();
+    // Prevent swipe-down minimize gesture
+    tg.disableVerticalSwipes?.();
     applyTgSafeArea();
+
+    // Re-expand if the user somehow collapses the app
+    const onViewportChanged = () => {
+      if (!tg.isExpanded) tg.expand();
+    };
+
     tg.onEvent('safeAreaChanged',        applyTgSafeArea);
     tg.onEvent('contentSafeAreaChanged', applyTgSafeArea);
+    tg.onEvent('viewportChanged',        onViewportChanged);
     return () => {
       tg.offEvent('safeAreaChanged',        applyTgSafeArea);
       tg.offEvent('contentSafeAreaChanged', applyTgSafeArea);
+      tg.offEvent('viewportChanged',        onViewportChanged);
     };
   }, []);
 
