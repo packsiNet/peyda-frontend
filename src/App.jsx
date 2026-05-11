@@ -775,21 +775,66 @@ function ProfileModal({ onClose, onIdentity }) {
   );
 }
 
-function CameraCapture({ inputId, label, capture, icon, onCapture, preview }) {
-  function handleChange(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    onCapture(url);
-    e.target.value = '';
+function CameraCapture({ label, facingMode, icon, onCapture, preview }) {
+  const [open, setOpen] = useState(false);
+  const [stream, setStream] = useState(null);
+  const [error, setError] = useState(null);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    if (stream && videoRef.current) {
+      videoRef.current.srcObject = stream;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [stream]);
+
+  useEffect(() => {
+    return () => { stream?.getTracks().forEach(t => t.stop()); };
+  }, [stream]);
+
+  async function openCamera() {
+    setError(null);
+    setOpen(true);
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: facingMode }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false,
+      });
+      setStream(s);
+    } catch (err) {
+      setError(err.name === 'NotAllowedError' ? 'Camera permission denied.' : 'Camera not available on this device.');
+    }
+  }
+
+  function closeCamera() {
+    stream?.getTracks().forEach(t => t.stop());
+    setStream(null);
+    setOpen(false);
+    setError(null);
+  }
+
+  function takePhoto() {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+    canvas.width = video.videoWidth || 1280;
+    canvas.height = video.videoHeight || 720;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    canvas.toBlob(blob => {
+      if (!blob) return;
+      onCapture(URL.createObjectURL(blob));
+      closeCamera();
+    }, 'image/jpeg', 0.92);
   }
 
   return (
     <div className="id-camera-card">
       <span className="id-camera-card__label">{label}</span>
-      <label
-        htmlFor={inputId}
+      <button
+        type="button"
         className={`id-camera-btn${preview ? ' id-camera-btn--captured' : ''}`}
+        onClick={openCamera}
       >
         {preview ? (
           <>
@@ -802,15 +847,34 @@ function CameraCapture({ inputId, label, capture, icon, onCapture, preview }) {
             <span className="id-camera-btn__text">Tap to open camera</span>
           </>
         )}
-      </label>
-      <input
-        id={inputId}
-        type="file"
-        accept="image/*"
-        capture={capture}
-        className="id-camera-btn__input"
-        onChange={handleChange}
-      />
+      </button>
+
+      {open && (
+        <div className="cam-overlay">
+          <canvas ref={canvasRef} style={{ display: 'none' }} />
+          {error ? (
+            <div className="cam-error">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <p className="cam-error__text">{error}</p>
+              <button type="button" className="cam-error__btn" onClick={closeCamera}>Close</button>
+            </div>
+          ) : (
+            <>
+              <video ref={videoRef} className="cam-video" autoPlay playsInline muted />
+              <div className="cam-label">{label}</div>
+              <div className="cam-bar">
+                <button type="button" className="cam-cancel" onClick={closeCamera}>Cancel</button>
+                <button type="button" className="cam-shutter" onClick={takePhoto} aria-label="Take photo">
+                  <span className="cam-shutter__ring" />
+                </button>
+                <div className="cam-spacer" />
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -994,9 +1058,8 @@ function IdentityContent({ onDone }) {
         <p className="identity-section__label">Photo Verification</p>
         <div className="id-cameras">
           <CameraCapture
-            inputId="cam-doc"
             label="Document Photo"
-            capture="environment"
+            facingMode="environment"
             preview={docPhoto}
             onCapture={setDocPhoto}
             icon={
@@ -1009,9 +1072,8 @@ function IdentityContent({ onDone }) {
             }
           />
           <CameraCapture
-            inputId="cam-selfie"
             label="Selfie Photo"
-            capture="user"
+            facingMode="user"
             preview={selfiePhoto}
             onCapture={setSelfiePhoto}
             icon={
