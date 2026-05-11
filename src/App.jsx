@@ -101,7 +101,7 @@ function SplashLoader() {
       </div>
 
       <div className="splash-loader__progress-wrap">
-        <div className="splash-loader__progress-text">در حال پردازش پرداخت</div>
+        <div className="splash-loader__progress-text">Loading...</div>
         <div className="splash-loader__progress-bar" aria-hidden="true">
           <div className="splash-loader__progress-fill" />
         </div>
@@ -301,7 +301,6 @@ function TxListItem({ item, type, onTap }) {
       <div className="tx-card__divider" />
       <div className="tx-card__body">
         <div className="tx-card__main">
-          <div className="tx-card__name">{item.name}</div>
           <div className="tx-card__method">
             <span className="tx-card__method-dot" style={{ background: color || 'var(--ink-mute)' }} />
             <span className="tx-card__method-text" style={{ color: color || 'var(--ink-mute)' }}>
@@ -362,45 +361,212 @@ function DetailSheet({ item, type, onClose }) {
   );
 }
 
-function AddSheet({ onClose }) {
-  const [type, setType] = useState('send');
-  const [method, setMethod] = useState('Revolut');
+const CURRENCIES = [
+  { id: 'EUR', label: 'Euro', symbol: '€', enabled: true },
+  { id: 'USD', label: 'Dollar', symbol: '$', enabled: false },
+  { id: 'CAD', label: 'CAD Dollar', symbol: 'CA$', enabled: false },
+];
+
+const EXCHANGE_METHODS = ['Revolut', 'Zelle', 'Paypal'];
+
+const BONBAST_RATE = 160_000;
+const URGENT_RATE  = 150_000;
+
+function prefixPadding(symbol) {
+  if (symbol.length >= 3) return '52px';
+  if (symbol.length === 2) return '40px';
+  return '34px';
+}
+
+function ExchangeModal({ onClose }) {
+  const [direction, setDirection] = useState('send');
+  const [currency, setCurrency] = useState('EUR');
+  const [amount, setAmount] = useState('');
+  const [methods, setMethods] = useState([]);
+  const [proposedAmount, setProposedAmount] = useState('');
+  const [selectedRate, setSelectedRate] = useState(null);
+
+  const toggleMethod = (m) =>
+    setMethods((prev) => (prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]));
+
+  const currSymbol = CURRENCIES.find((c) => c.id === currency)?.symbol ?? '';
+
+  const handleRateSelect = (key, value) => {
+    if (selectedRate === key) {
+      setSelectedRate(null);
+      setProposedAmount('');
+    } else {
+      setSelectedRate(key);
+      setProposedAmount(String(value));
+    }
+  };
 
   return (
     <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet" onClick={(event) => event.stopPropagation()}>
+      <div className="sheet exchange-modal" onClick={(event) => event.stopPropagation()}>
         <div className="sheet__handle" />
-        <div className="sheet__title">New transfer</div>
-        <p className="sheet__sub">Move money to a friend, fast.</p>
+        <div className="sheet__title">Exchange Request</div>
+        <p className="sheet__sub">Submit a send or receive money request</p>
 
-        <div className="seg" style={{ marginTop: 4 }}>
-          <button type="button" className={`seg__btn ${type === 'send' ? 'is-active' : ''}`} onClick={() => setType('send')}>Send</button>
-          <button type="button" className={`seg__btn ${type === 'request' ? 'is-active' : ''}`} onClick={() => setType('request')}>Request</button>
+        <div className="exchange-modal__section">
+          <div className="seg seg--full" style={{ marginTop: 0 }}>
+            <button
+              type="button"
+              className={`seg__btn seg__btn--icon ${direction === 'send' ? 'is-active is-send' : ''}`}
+              onClick={() => setDirection('send')}
+            >
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6.5 11V3M3.5 6l3-3 3 3" />
+              </svg>
+              Send
+            </button>
+            <button
+              type="button"
+              className={`seg__btn seg__btn--icon ${direction === 'receive' ? 'is-active is-receive' : ''}`}
+              onClick={() => setDirection('receive')}
+            >
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6.5 2v8M3.5 7l3 3 3-3" />
+              </svg>
+              Receive
+            </button>
+          </div>
         </div>
 
-        <label className="input-label">Recipient</label>
-        <input className="input" placeholder="Search name, email, IBAN…" />
+        <div className="exchange-modal__section">
+          <label className="input-label">Currency</label>
+          <div className="seg seg--full">
+            {CURRENCIES.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                disabled={!c.enabled}
+                className={`seg__btn ${currency === c.id ? 'is-active' : ''} ${!c.enabled ? 'seg__btn--disabled' : ''}`}
+                onClick={() => c.enabled && setCurrency(c.id)}
+              >
+                <span className="seg__btn-symbol">{c.symbol}</span>
+                {c.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
-        <label className="input-label">Amount</label>
-        <input className="input" type="number" placeholder="€ 0.00" inputMode="decimal" />
+        <div className="exchange-modal__section">
+          <label className="input-label">Amount</label>
+          <div className="input-wrap">
+            <span className="input-wrap__prefix">{currSymbol}</span>
+            <input
+              className="input input--prefixed"
+              style={{ paddingLeft: prefixPadding(currSymbol) }}
+              type="number"
+              placeholder="0.00"
+              inputMode="decimal"
+              min="0"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          </div>
+        </div>
 
-        <label className="input-label">Method</label>
-        <div className="seg">
-          {['Revolut', 'Zelle', 'SEPA'].map((option) => (
-            <button
-              key={option}
-              type="button"
-              className={`seg__btn ${method === option ? 'is-active' : ''}`}
-              onClick={() => setMethod(option)}
-            >
-              {option}
-            </button>
-          ))}
+        <div className="exchange-modal__section">
+          <label className="input-label">
+            Method
+            <span className="input-label__hint">Multiple allowed</span>
+          </label>
+          <div className="method-chips">
+            {EXCHANGE_METHODS.map((m) => {
+              const active = methods.includes(m);
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  className={`method-chip ${active ? 'method-chip--active' : ''}`}
+                  onClick={() => toggleMethod(m)}
+                  aria-pressed={active}
+                >
+                  {active && (
+                    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M2 5.5l2.5 2.5L9 3" />
+                    </svg>
+                  )}
+                  {m}
+                </button>
+              );
+            })}
+          </div>
+          {methods.length === 0 && (
+            <p className="exchange-modal__hint">Select at least one payment method</p>
+          )}
+        </div>
+
+        <div className="exchange-modal__section">
+          <div className="price-row">
+            <div className="price-col">
+              <p className="price-col__label">Bonbast Price</p>
+              <button
+                type="button"
+                className={`price-col__card ${selectedRate === 'bonbast' ? 'price-col__card--bonbast' : ''}`}
+                onClick={() => handleRateSelect('bonbast', BONBAST_RATE)}
+                aria-pressed={selectedRate === 'bonbast'}
+              >
+                <span className="price-col__check" aria-hidden="true">
+                  {selectedRate === 'bonbast'
+                    ? <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M2 5.5l2.5 2.5L9 3" /></svg>
+                    : <span className="price-col__dot" />}
+                </span>
+                <span className="price-col__value">﷼ {BONBAST_RATE.toLocaleString()}</span>
+              </button>
+            </div>
+
+            <div className="price-col">
+              <p className="price-col__label">Urgent Price</p>
+              <button
+                type="button"
+                className={`price-col__card ${selectedRate === 'urgent' ? 'price-col__card--urgent' : ''}`}
+                onClick={() => handleRateSelect('urgent', URGENT_RATE)}
+                aria-pressed={selectedRate === 'urgent'}
+              >
+                <span className="price-col__check" aria-hidden="true">
+                  {selectedRate === 'urgent'
+                    ? <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M2 5.5l2.5 2.5L9 3" /></svg>
+                    : <span className="price-col__dot" />}
+                </span>
+                <span className="price-col__value">﷼ {URGENT_RATE.toLocaleString()}</span>
+              </button>
+            </div>
+
+            <div className="price-col price-col--input">
+              <p className="price-col__label">
+                Proposed Amount
+                <span className="input-label__hint" style={{ marginLeft: 4 }}>Rial</span>
+              </p>
+              <div className="input-wrap">
+                <span className="input-wrap__prefix input-wrap__prefix--rial">﷼</span>
+                <input
+                  className="input input--prefixed price-col__input"
+                  style={{ paddingLeft: prefixPadding('﷼﷼') }}
+                  type="number"
+                  placeholder="0"
+                  inputMode="numeric"
+                  min="0"
+                  disabled={selectedRate !== null}
+                  value={proposedAmount}
+                  onChange={(e) => setProposedAmount(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="sheet-actions">
           <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
-          <button type="button" className="btn btn--primary">Continue</button>
+          <button
+            type="button"
+            className="btn btn--primary"
+            disabled={!amount || methods.length === 0}
+          >
+            Submit Request
+          </button>
         </div>
       </div>
     </div>
@@ -492,7 +658,7 @@ export default function App() {
   const [showProfile, setShowProfile] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
   const [themeIdx, setThemeIdx] = useState(0);
-  const [layoutMode, setLayoutMode] = useState('tile');
+  const [layoutMode, setLayoutMode] = useState('list');
   const [tallScreen, setTallScreen] = useState(() => window.matchMedia('(min-height: 500px)').matches);
   const [loading, setLoading] = useState(true);
 
@@ -669,7 +835,7 @@ export default function App() {
         </nav>
 
         {detail && <DetailSheet item={detail.item} type={detail.type} onClose={() => setDetail(null)} />}
-        {showAdd && <AddSheet onClose={() => setShowAdd(false)} />}
+        {showAdd && <ExchangeModal onClose={() => setShowAdd(false)} />}
         {showProfile && <ProfileModal onClose={() => setShowProfile(false)} />}
       </div>
     </>
