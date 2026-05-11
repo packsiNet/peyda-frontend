@@ -967,11 +967,11 @@ function PlaceholderPage({ title, icon }) {
   );
 }
 
-function ProfileModal({ onClose, onIdentity }) {
+function ProfileModal({ onClose, onProfile, onIdentity }) {
   return (
     <div className="profile-modal-backdrop" onClick={onClose}>
       <div className="profile-modal" onClick={(event) => event.stopPropagation()}>
-        <button type="button" className="profile-modal__item" onClick={onClose}>
+        <button type="button" className="profile-modal__item" onClick={() => { onClose(); onProfile(); }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="8" cy="5" r="3" />
             <path d="M2 14c0-2.5 2-4.5 6-4.5s6 2 6 4.5" />
@@ -992,6 +992,82 @@ function ProfileModal({ onClose, onIdentity }) {
           </svg>
           History
         </button>
+      </div>
+    </div>
+  );
+}
+
+function ProfileContent({ profile }) {
+  const { firstName, lastName, phoneVerified, selfiePhoto, docPhoto } = profile ?? {};
+
+  const PhotoItem = ({ label, photo }) => (
+    <div className="profile-photo-item">
+      <div className="profile-photo-thumb-wrap">
+        {photo ? (
+          <img className="profile-photo-thumb" src={photo} alt={label} />
+        ) : (
+          <div className="profile-photo-placeholder">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="5" width="18" height="14" rx="2.5" />
+              <circle cx="11" cy="12" r="3.5" />
+              <path d="M7 5V4a2 2 0 012-2h4a2 2 0 012 2v1" />
+            </svg>
+          </div>
+        )}
+      </div>
+      <div className="profile-photo-info">
+        <span className="profile-photo-label">{label}</span>
+        <span className={`profile-photo-status${photo ? ' profile-photo-status--ok' : ''}`}>
+          {photo ? 'Uploaded' : 'Not uploaded yet'}
+        </span>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="page-scroll profile-page">
+      <div className="identity-section">
+        <p className="identity-section__label">Personal Info</p>
+        <div className="identity-field">
+          <label className="identity-field__label">First Name</label>
+          <div className={`profile-value${!firstName ? ' profile-value--empty' : ''}`}>
+            {firstName || 'Not provided'}
+          </div>
+        </div>
+        <div className="identity-field">
+          <label className="identity-field__label">Last Name</label>
+          <div className={`profile-value${!lastName ? ' profile-value--empty' : ''}`}>
+            {lastName || 'Not provided'}
+          </div>
+        </div>
+      </div>
+
+      <div className="identity-section">
+        <p className="identity-section__label">Contact</p>
+        <div className="identity-field">
+          <label className="identity-field__label">Mobile Number</label>
+          <div className="profile-value profile-value--phone">
+            <span className={phoneVerified ? '' : 'profile-value--empty'}>
+              {phoneVerified ? 'Verified via Telegram' : 'Not verified'}
+            </span>
+            {phoneVerified && (
+              <span className="profile-verified-badge">
+                <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1.5 5.5l2.8 2.8L9.5 2" />
+                </svg>
+                Verified
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="identity-section">
+        <p className="identity-section__label">Photo Verification</p>
+        <div className="profile-photos">
+          <PhotoItem label="Selfie Photo" photo={selfiePhoto} />
+          <PhotoItem label="Identity Document" photo={docPhoto} />
+        </div>
       </div>
     </div>
   );
@@ -1226,7 +1302,7 @@ function DatePickerField({ id, value, onChange }) {
   );
 }
 
-function IdentityContent({ onDone }) {
+function IdentityContent({ onDone, onSave }) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [birthDay, setBirthDay] = useState('');
@@ -1250,8 +1326,7 @@ function IdentityContent({ onDone }) {
   function handleSubmit(e) {
     e.preventDefault();
     if (!canSubmit) return;
-    // TODO: send to API
-    alert('Identity submitted successfully!');
+    onSave?.({ firstName, lastName, birthDay, phoneVerified, selfiePhoto, docPhoto });
     onDone();
   }
 
@@ -1412,6 +1487,7 @@ export default function App() {
   const [detail, setDetail] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [userProfile, setUserProfile] = useState(null);
   const [themeIdx, setThemeIdx] = useState(0);
   const [layoutMode, setLayoutMode] = useState('list');
   const [tallScreen, setTallScreen] = useState(() => window.matchMedia('(min-height: 500px)').matches);
@@ -1498,7 +1574,7 @@ export default function App() {
 
   if (loading) return <SplashLoader />;
 
-  const SUB_PAGES = { identity: 'Identity Verification' };
+  const SUB_PAGES = { identity: 'Identity Verification', profile: 'Profile' };
   const isSubPage = activePage in SUB_PAGES;
 
   const header = isSubPage
@@ -1580,7 +1656,14 @@ export default function App() {
       )}
 
       {activePage === 'identity' && (
-        <IdentityContent onDone={() => setActivePage('home')} />
+        <IdentityContent
+          onDone={() => setActivePage('home')}
+          onSave={(data) => setUserProfile(data)}
+        />
+      )}
+
+      {activePage === 'profile' && (
+        <ProfileContent profile={userProfile} />
       )}
 
       {activePage === 'wallet' && <PlaceholderPage title="Wallet" icon="wallet" />}
@@ -1591,6 +1674,7 @@ export default function App() {
       {showProfile && (
         <ProfileModal
           onClose={() => setShowProfile(false)}
+          onProfile={() => { setShowProfile(false); setActivePage('profile'); }}
           onIdentity={() => { setShowProfile(false); setActivePage('identity'); }}
         />
       )}
