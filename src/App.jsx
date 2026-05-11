@@ -1,4 +1,4 @@
-import { useState, useEffect, memo, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, memo, useCallback, useMemo } from 'react';
 
 const THEMES = ['dark', 'pink'];
 
@@ -620,7 +620,133 @@ function ExchangeModal({ onClose }) {
   );
 }
 
-function ProfileModal({ onClose }) {
+// ── Shared Layout ─────────────────────────────────────────────────
+
+function BgOrbs() {
+  return (
+    <div className="bg-orbs" aria-hidden="true">
+      <div className="bg-orb bg-orb--1" />
+      <div className="bg-orb bg-orb--2" />
+      <div className="bg-orb bg-orb--3" />
+      <div className="bg-orb bg-orb--4" />
+      <div className="bg-orb bg-orb--5" />
+    </div>
+  );
+}
+
+function PageHeader({ title, onBack }) {
+  return (
+    <header className="p2p-header p2p-header--sub">
+      <button type="button" className="p2p-header__back" onClick={onBack} aria-label="Back">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="11,4 6,9 11,14" />
+        </svg>
+      </button>
+      <h1 className="p2p-header__page-title">{title}</h1>
+      <div className="p2p-header__spacer" />
+    </header>
+  );
+}
+
+function AppTabBar({ activePage, onNavigate, onProfile, onExchange }) {
+  return (
+    <nav className="p2p-tabbar" aria-label="Main navigation">
+      <button type="button" className={`p2p-tab ${activePage === 'home' ? 'is-active' : ''}`} onClick={() => onNavigate('home')} aria-label="Home">
+        <svg className="p2p-tab__icon" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="3,17 8,10 13,14 18,6 21,9" />
+          <line x1="3" y1="17" x2="22" y2="17" />
+        </svg>
+        <span className="p2p-tab__label">Home</span>
+        <span className="p2p-tab__bar" aria-hidden="true" />
+      </button>
+
+      <button type="button" className={`p2p-tab ${activePage === 'wallet' ? 'is-active' : ''}`} onClick={() => onNavigate('wallet')} aria-label="Wallet">
+        <svg className="p2p-tab__icon" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="8" width="20" height="13" rx="2.5" />
+          <path d="M6 8V6a2 2 0 012-2h8a2 2 0 012 2v2" />
+          <circle cx="17" cy="15" r="1.5" fill="currentColor" stroke="none" />
+        </svg>
+        <span className="p2p-tab__label">Wallet</span>
+        <span className="p2p-tab__bar" aria-hidden="true" />
+      </button>
+
+      <div className="p2p-tab p2p-tab--exchange">
+        <button type="button" className="p2p-tab__exchange-btn" onClick={onExchange} aria-label="Exchange">
+          <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+            <circle cx="11" cy="15" r="7" fill="rgba(255,255,255,0.95)" />
+            <circle cx="20" cy="15" r="7" fill="rgba(255,255,255,0.50)" />
+          </svg>
+        </button>
+        <span className="p2p-tab__label p2p-tab__label--exchange">Exchange</span>
+      </div>
+
+      <button type="button" className={`p2p-tab ${activePage === 'markets' ? 'is-active' : ''}`} onClick={() => onNavigate('markets')} aria-label="Markets">
+        <svg className="p2p-tab__icon" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+          <path d="M9 22V12h6v10" />
+        </svg>
+        <span className="p2p-tab__label">Markets</span>
+        <span className="p2p-tab__bar" aria-hidden="true" />
+      </button>
+
+      <button type="button" className="p2p-tab" onClick={onProfile} aria-label="Profile">
+        <svg className="p2p-tab__icon" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="8" width="20" height="13" rx="2" />
+          <path d="M16 8V6a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" />
+          <line x1="2" y1="14" x2="22" y2="14" />
+        </svg>
+        <span className="p2p-tab__label">Profile</span>
+        <span className="p2p-tab__bar" aria-hidden="true" />
+      </button>
+    </nav>
+  );
+}
+
+function AppShell({ header, children, activePage, onNavigate, onProfile, onExchange }) {
+  return (
+    <>
+      <BgOrbs />
+      <div className="p2p-shell">
+        {header}
+        <div className="app-content">
+          {children}
+        </div>
+        <AppTabBar
+          activePage={activePage}
+          onNavigate={onNavigate}
+          onProfile={onProfile}
+          onExchange={onExchange}
+        />
+      </div>
+    </>
+  );
+}
+
+function PlaceholderPage({ title, icon }) {
+  const icons = {
+    wallet: (
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="8" width="20" height="13" rx="2.5" />
+        <path d="M6 8V6a2 2 0 012-2h8a2 2 0 012 2v2" />
+        <circle cx="17" cy="15" r="1.5" fill="currentColor" stroke="none" />
+      </svg>
+    ),
+    markets: (
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+        <path d="M9 22V12h6v10" />
+      </svg>
+    ),
+  };
+  return (
+    <div className="placeholder-page">
+      <span className="placeholder-page__icon">{icons[icon]}</span>
+      <span className="placeholder-page__label">Coming soon</span>
+    </div>
+  );
+}
+
+function ProfileModal({ onClose, onIdentity }) {
   return (
     <div className="profile-modal-backdrop" onClick={onClose}>
       <div className="profile-modal" onClick={(event) => event.stopPropagation()}>
@@ -631,7 +757,7 @@ function ProfileModal({ onClose }) {
           </svg>
           Profile
         </button>
-        <button type="button" className="profile-modal__item" onClick={onClose}>
+        <button type="button" className="profile-modal__item" onClick={() => { onClose(); onIdentity(); }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="3" width="10" height="10" rx="2" />
             <path d="M7 9l2 2 4-4" />
@@ -647,6 +773,136 @@ function ProfileModal({ onClose }) {
         </button>
       </div>
     </div>
+  );
+}
+
+function CameraCapture({ label, capture, icon, onCapture, preview }) {
+  const inputRef = useRef(null);
+
+  function handleChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    onCapture(url);
+  }
+
+  return (
+    <div className="id-camera-card">
+      <span className="id-camera-card__label">{label}</span>
+      <button
+        type="button"
+        className={`id-camera-btn${preview ? ' id-camera-btn--captured' : ''}`}
+        onClick={() => inputRef.current?.click()}
+      >
+        {preview ? (
+          <>
+            <img className="id-camera-btn__preview" src={preview} alt={label} />
+            <span className="id-camera-btn__retake">Retake</span>
+          </>
+        ) : (
+          <>
+            <span className="id-camera-btn__icon">{icon}</span>
+            <span className="id-camera-btn__text">Tap to open camera</span>
+          </>
+        )}
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          capture={capture}
+          className="id-camera-btn__input"
+          onChange={handleChange}
+          tabIndex={-1}
+        />
+      </button>
+    </div>
+  );
+}
+
+function IdentityContent({ onDone }) {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [docPhoto, setDocPhoto] = useState(null);
+  const [selfiePhoto, setSelfiePhoto] = useState(null);
+
+  const canSubmit = firstName.trim() && lastName.trim() && docPhoto && selfiePhoto;
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    if (!canSubmit) return;
+    // TODO: send to API
+    alert('Identity submitted successfully!');
+    onDone();
+  }
+
+  return (
+    <form className="page-scroll" onSubmit={handleSubmit}>
+      <div className="identity-section">
+        <p className="identity-section__label">Personal Info</p>
+        <div className="identity-field">
+          <label className="identity-field__label" htmlFor="id-firstname">First Name</label>
+          <input
+            id="id-firstname"
+            className="identity-field__input"
+            type="text"
+            placeholder="Enter your first name"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            autoComplete="given-name"
+          />
+        </div>
+        <div className="identity-field">
+          <label className="identity-field__label" htmlFor="id-lastname">Last Name</label>
+          <input
+            id="id-lastname"
+            className="identity-field__input"
+            type="text"
+            placeholder="Enter your last name"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            autoComplete="family-name"
+          />
+        </div>
+      </div>
+
+      <div className="identity-section">
+        <p className="identity-section__label">Photo Verification</p>
+        <div className="id-cameras">
+          <CameraCapture
+            label="Document Photo"
+            capture="environment"
+            preview={docPhoto}
+            onCapture={setDocPhoto}
+            icon={
+              <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="8" width="26" height="18" rx="3" />
+                <rect x="8" y="12" width="10" height="7" rx="1.5" />
+                <circle cx="23" cy="20" r="1.5" fill="currentColor" stroke="none" />
+                <path d="M10 6h12" />
+              </svg>
+            }
+          />
+          <CameraCapture
+            label="Selfie Photo"
+            capture="user"
+            preview={selfiePhoto}
+            onCapture={setSelfiePhoto}
+            icon={
+              <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="16" cy="14" r="5" />
+                <path d="M6 26c0-4.4 4.5-7.5 10-7.5s10 3.1 10 7.5" />
+                <path d="M22 4l3 3-3 3" />
+                <path d="M25 7h-4" />
+              </svg>
+            }
+          />
+        </div>
+      </div>
+
+      <button type="submit" className="identity-submit" disabled={!canSubmit}>
+        Submit Verification
+      </button>
+    </form>
   );
 }
 
@@ -699,11 +955,11 @@ const SENT = [
 ];
 
 export default function App() {
+  const [activePage, setActivePage] = useState('home');
   const [filter, setFilter] = useState('all');
   const [detail, setDetail] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const [activeTab, setActiveTab] = useState('home');
   const [themeIdx, setThemeIdx] = useState(0);
   const [layoutMode, setLayoutMode] = useState('list');
   const [tallScreen, setTallScreen] = useState(() => window.matchMedia('(min-height: 500px)').matches);
@@ -742,151 +998,104 @@ export default function App() {
 
   const handleTap = useCallback((item, type) => setDetail({ item, type }), []);
 
-  if (loading) {
-    return <SplashLoader />;
-  }
+  if (loading) return <SplashLoader />;
+
+  const SUB_PAGES = { identity: 'Identity Verification' };
+  const isSubPage = activePage in SUB_PAGES;
+
+  const header = isSubPage
+    ? <PageHeader title={SUB_PAGES[activePage]} onBack={() => setActivePage('home')} />
+    : (
+      <header className="p2p-header">
+        <div className="p2p-header__text-group">
+          <h1 className="p2p-header__title">P2P <b>PayDa</b></h1>
+          <p className="p2p-header__sub">All transactions</p>
+        </div>
+        <div className="p2p-header__right">
+          <div className="p2p-summary">
+            <div className="p2p-summary__row">
+              <span className="p2p-summary__pos">+€{totalReceived.toLocaleString()}</span>
+              <span className="p2p-summary__neg">−€{totalSent.toLocaleString()}</span>
+            </div>
+            <span className="p2p-summary__label">this period</span>
+          </div>
+          <ThemeToggle themeIdx={themeIdx} onToggle={() => setThemeIdx(i => (i + 1) % THEMES.length)} />
+          <button type="button" className="p2p-header__avatar" aria-label="Profile" onClick={() => setShowProfile(true)}>
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="rgba(255,255,255,0.95)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="9" cy="6.5" r="3" />
+              <path d="M2.5 15.5c0-3.3 2.9-5.3 6.5-5.3s6.5 2 6.5 5.3" />
+            </svg>
+          </button>
+        </div>
+      </header>
+    );
 
   return (
-    <>
-      <div className="bg-orbs" aria-hidden="true">
-        <div className="bg-orb bg-orb--1" />
-        <div className="bg-orb bg-orb--2" />
-        <div className="bg-orb bg-orb--3" />
-        <div className="bg-orb bg-orb--4" />
-        <div className="bg-orb bg-orb--5" />
-      </div>
-
-      <div className="p2p-shell">
-        <header className="p2p-header">
-          <div className="p2p-header__text-group">
-            <h1 className="p2p-header__title">
-              P2P <b>PayDa</b>
-            </h1>
-            <p className="p2p-header__sub">All transactions</p>
-          </div>
-
-          <div className="p2p-header__right">
-            <div className="p2p-summary">
-              <div className="p2p-summary__row">
-                <span className="p2p-summary__pos">+€{totalReceived.toLocaleString()}</span>
-                <span className="p2p-summary__neg">−€{totalSent.toLocaleString()}</span>
+    <AppShell
+      header={header}
+      activePage={activePage}
+      onNavigate={setActivePage}
+      onProfile={() => setShowProfile(true)}
+      onExchange={() => setShowAdd(true)}
+    >
+      {activePage === 'home' && (
+        <>
+          <FilterBar
+            active={filter}
+            onChange={setFilter}
+            layout={layoutMode}
+            onToggleLayout={() => setLayoutMode(m => m === 'tile' ? 'list' : 'tile')}
+          />
+          <main className="p2p-lists" aria-label="Transactions">
+            {layoutMode === 'tile' ? (
+              <div className="p2p-tiles-wrap p2p-scroll">
+                <div className="p2p-tiles" role="list">
+                  {tiles.map(({ data, type }) => (
+                    <TxTile key={`${type}-${data.id}`} item={data} type={type} onTap={handleTap} />
+                  ))}
+                </div>
               </div>
-              <span className="p2p-summary__label">this period</span>
-            </div>
-            <ThemeToggle themeIdx={themeIdx} onToggle={() => setThemeIdx(i => (i + 1) % THEMES.length)} />
-            <button type="button" className="p2p-header__avatar" aria-label="Profile" onClick={() => setShowProfile(true)}>
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="rgba(255,255,255,0.95)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="9" cy="6.5" r="3" />
-                <path d="M2.5 15.5c0-3.3 2.9-5.3 6.5-5.3s6.5 2 6.5 5.3" />
-              </svg>
-            </button>
-          </div>
-        </header>
-
-        <FilterBar
-          active={filter}
-          onChange={setFilter}
-          layout={layoutMode}
-          onToggleLayout={() => setLayoutMode(m => m === 'tile' ? 'list' : 'tile')}
-        />
-
-        <main className="p2p-lists" aria-label="Transactions">
-          {layoutMode === 'tile' ? (
-            <div className="p2p-tiles-wrap p2p-scroll">
-              <div className="p2p-tiles" role="list">
+            ) : filter === 'all' && tallScreen ? (
+              <div className="p2p-list-wrap p2p-list-wrap--split">
+                <div className="p2p-list-col" role="list" aria-label="Received">
+                  <p className="p2p-list-col__head p2p-list-col__head--r">Received</p>
+                  {RECEIVED.map((data) => (
+                    <TxListItem key={data.id} item={data} type="received" onTap={handleTap} />
+                  ))}
+                </div>
+                <div className="p2p-list-col" role="list" aria-label="Sent">
+                  <p className="p2p-list-col__head p2p-list-col__head--s">Sent</p>
+                  {SENT.map((data) => (
+                    <TxListItem key={data.id} item={data} type="sent" onTap={handleTap} />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="p2p-list-wrap p2p-scroll" role="list">
                 {tiles.map(({ data, type }) => (
-                  <TxTile
-                    key={`${type}-${data.id}`}
-                    item={data}
-                    type={type}
-                    onTap={handleTap}
-                  />
+                  <TxListItem key={`${type}-${data.id}`} item={data} type={type} onTap={handleTap} />
                 ))}
               </div>
-            </div>
-          ) : filter === 'all' && tallScreen ? (
-            <div className="p2p-list-wrap p2p-list-wrap--split">
-              <div className="p2p-list-col" role="list" aria-label="Received">
-                <p className="p2p-list-col__head p2p-list-col__head--r">Received</p>
-                {RECEIVED.map((data) => (
-                  <TxListItem key={data.id} item={data} type="received" onTap={handleTap} />
-                ))}
-              </div>
-              <div className="p2p-list-col" role="list" aria-label="Sent">
-                <p className="p2p-list-col__head p2p-list-col__head--s">Sent</p>
-                {SENT.map((data) => (
-                  <TxListItem key={data.id} item={data} type="sent" onTap={handleTap} />
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="p2p-list-wrap p2p-scroll" role="list">
-              {tiles.map(({ data, type }) => (
-                <TxListItem
-                  key={`${type}-${data.id}`}
-                  item={data}
-                  type={type}
-                  onTap={handleTap}
-                />
-              ))}
-            </div>
-          )}
-        </main>
+            )}
+          </main>
+        </>
+      )}
 
-        <nav className="p2p-tabbar" aria-label="Main navigation">
-          <button type="button" className={`p2p-tab ${activeTab === 'home' ? 'is-active' : ''}`} onClick={() => setActiveTab('home')} aria-label="Home">
-            <svg className="p2p-tab__icon" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="3,17 8,10 13,14 18,6 21,9" />
-              <line x1="3" y1="17" x2="22" y2="17" />
-            </svg>
-            <span className="p2p-tab__label">Home</span>
-            <span className="p2p-tab__bar" aria-hidden="true" />
-          </button>
+      {activePage === 'identity' && (
+        <IdentityContent onDone={() => setActivePage('home')} />
+      )}
 
-          <button type="button" className={`p2p-tab ${activeTab === 'wallet' ? 'is-active' : ''}`} onClick={() => setActiveTab('wallet')} aria-label="Wallet">
-            <svg className="p2p-tab__icon" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="2" y="8" width="20" height="13" rx="2.5" />
-              <path d="M6 8V6a2 2 0 012-2h8a2 2 0 012 2v2" />
-              <circle cx="17" cy="15" r="1.5" fill="currentColor" stroke="none" />
-            </svg>
-            <span className="p2p-tab__label">Wallet</span>
-            <span className="p2p-tab__bar" aria-hidden="true" />
-          </button>
+      {activePage === 'wallet' && <PlaceholderPage title="Wallet" icon="wallet" />}
+      {activePage === 'markets' && <PlaceholderPage title="Markets" icon="markets" />}
 
-          <div className="p2p-tab p2p-tab--exchange">
-            <button type="button" className="p2p-tab__exchange-btn" onClick={() => setShowAdd(true)} aria-label="Exchange">
-              <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
-                <circle cx="11" cy="15" r="7" fill="rgba(255,255,255,0.95)" />
-                <circle cx="20" cy="15" r="7" fill="rgba(255,255,255,0.50)" />
-              </svg>
-            </button>
-            <span className="p2p-tab__label p2p-tab__label--exchange">Exchange</span>
-          </div>
-
-          <button type="button" className={`p2p-tab ${activeTab === 'markets' ? 'is-active' : ''}`} onClick={() => setActiveTab('markets')} aria-label="Markets">
-            <svg className="p2p-tab__icon" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-              <path d="M9 22V12h6v10" />
-            </svg>
-            <span className="p2p-tab__label">Markets</span>
-            <span className="p2p-tab__bar" aria-hidden="true" />
-          </button>
-
-          <button type="button" className={`p2p-tab ${activeTab === 'profile' ? 'is-active' : ''}`} onClick={() => { setActiveTab('profile'); setShowProfile(true); }} aria-label="Profile">
-            <svg className="p2p-tab__icon" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="2" y="8" width="20" height="13" rx="2" />
-              <path d="M16 8V6a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" />
-              <line x1="2" y1="14" x2="22" y2="14" />
-            </svg>
-            <span className="p2p-tab__label">Profile</span>
-            <span className="p2p-tab__bar" aria-hidden="true" />
-          </button>
-        </nav>
-
-        {detail && <DetailSheet item={detail.item} type={detail.type} onClose={() => setDetail(null)} />}
-        {showAdd && <ExchangeModal onClose={() => setShowAdd(false)} />}
-        {showProfile && <ProfileModal onClose={() => setShowProfile(false)} />}
-      </div>
-    </>
+      {detail && <DetailSheet item={detail.item} type={detail.type} onClose={() => setDetail(null)} />}
+      {showAdd && <ExchangeModal onClose={() => setShowAdd(false)} />}
+      {showProfile && (
+        <ProfileModal
+          onClose={() => setShowProfile(false)}
+          onIdentity={() => { setShowProfile(false); setActivePage('identity'); }}
+        />
+      )}
+    </AppShell>
   );
 }

@@ -188,6 +188,46 @@ body::after {
   overflow: hidden;
 }
 
+/* ── Shared content area ───────────────────────────────────────────── */
+.app-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* scrollable area for sub-pages */
+.page-scroll {
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding: 24px 20px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.page-scroll::-webkit-scrollbar { display: none; }
+
+/* Placeholder page for wallet/markets */
+.placeholder-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  color: var(--ink-mute);
+}
+.placeholder-page__icon {
+  opacity: 0.35;
+}
+.placeholder-page__label {
+  font-size: 15px;
+  font-weight: 600;
+  opacity: 0.5;
+}
+
 .p2p-header {
   flex-shrink: 0;
   background: linear-gradient(180deg, rgba(255,255,255,0.42) 0%, rgba(255,255,255,0.18) 100%);
@@ -201,6 +241,42 @@ body::after {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+/* Sub-page header (back + centered title) */
+.p2p-header--sub {
+  justify-content: space-between;
+}
+
+.p2p-header__back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.35);
+  color: var(--ink);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.p2p-header__back:hover { background: rgba(255,255,255,0.55); }
+
+.p2p-header__page-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  margin: 0;
+  flex: 1;
+  text-align: center;
+}
+
+.p2p-header__spacer {
+  width: 36px;
+  flex-shrink: 0;
 }
 
 .p2p-header__text-group {
@@ -1685,6 +1761,203 @@ input[type='number']::-webkit-inner-spin-button {
 }
 
 button { font-family: inherit; }
+
+/* ===== Identity Page ===== */
+
+.identity-section {
+  background: rgba(255,255,255,0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.6);
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 4px 16px rgba(120,70,40,0.10);
+}
+
+.identity-section__label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-mute);
+  margin-bottom: 12px;
+}
+
+.identity-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.identity-field:last-child {
+  margin-bottom: 0;
+}
+
+.identity-field__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  letter-spacing: 0.02em;
+}
+
+.identity-field__input {
+  height: 46px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(255,255,255,0.6);
+  background: rgba(255,255,255,0.55);
+  padding: 0 14px;
+  font-size: 15px;
+  color: var(--ink);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  width: 100%;
+}
+
+.identity-field__input::placeholder {
+  color: var(--ink-dim);
+}
+
+.identity-field__input:focus {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px rgba(245,145,72,0.18);
+  background: rgba(255,255,255,0.75);
+}
+
+/* Camera capture cards */
+.id-cameras {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.id-camera-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.id-camera-card__label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-mute);
+  text-align: center;
+}
+
+.id-camera-btn {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4/3;
+  border-radius: 14px;
+  border: 2px dashed rgba(180,100,60,0.30);
+  background: rgba(255,255,255,0.38);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: border-color 0.15s, background 0.15s;
+  overflow: hidden;
+  padding: 0;
+}
+
+.id-camera-btn:hover {
+  border-color: var(--amber);
+  background: rgba(255,255,255,0.55);
+}
+
+.id-camera-btn--captured {
+  border-style: solid;
+  border-color: var(--leaf);
+}
+
+.id-camera-btn__icon {
+  color: var(--ink-mute);
+  transition: color 0.15s;
+}
+
+.id-camera-btn:hover .id-camera-btn__icon {
+  color: var(--amber-deep);
+}
+
+.id-camera-btn__text {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-mute);
+  text-align: center;
+  padding: 0 6px;
+  line-height: 1.3;
+}
+
+.id-camera-btn__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.id-camera-btn__preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+.id-camera-btn__retake {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  z-index: 2;
+}
+
+/* Submit button */
+.identity-submit {
+  height: 50px;
+  border-radius: 14px;
+  border: none;
+  background: linear-gradient(135deg, var(--amber) 0%, var(--amber-deep) 100%);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  width: 100%;
+  box-shadow: 0 4px 16px rgba(213,107,37,0.35);
+  letter-spacing: 0.01em;
+  transition: opacity 0.15s, transform 0.1s;
+  margin-top: 4px;
+}
+
+.identity-submit:hover {
+  opacity: 0.92;
+}
+
+.identity-submit:active {
+  transform: scale(0.98);
+}
+
+.identity-submit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 
 /* ===== Splash Loader ===== */
 .splash-loader {
