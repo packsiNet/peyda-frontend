@@ -550,9 +550,9 @@ function ExchangeModal({ onClose }) {
                   );
                 })}
               </div>
-              {methods.length === 0 && (
-                <p className="exchange-modal__hint">Select at least one payment method</p>
-              )}
+              <p className="exchange-modal__hint" style={{ visibility: methods.length === 0 ? 'visible' : 'hidden' }}>
+                Select at least one payment method
+              </p>
             </div>
 
             <div className="exchange-modal__section">
