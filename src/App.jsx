@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, memo, useCallback, useMemo } from 'react';
 
-const THEMES = ['dark', 'pink'];
+const THEMES = ['dark', 'light'];
 
 function SplashLoader() {
   return (
@@ -124,7 +124,7 @@ function ThemeToggle({ themeIdx, onToggle }) {
     <button
       type="button"
       className="p2p-header__theme-btn"
-      aria-label={current === 'dark' ? 'Switch to pink theme' : 'Switch to dark theme'}
+      aria-label={current === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
       onClick={onToggle}
     >
       {current === 'dark' && (
@@ -133,7 +133,7 @@ function ThemeToggle({ themeIdx, onToggle }) {
           <path d="M9 1v2M9 15v2M1 9h2M15 9h2M3.2 3.2l1.4 1.4M13.4 13.4l1.4 1.4M3.2 14.8l1.4-1.4M13.4 4.6l1.4-1.4" />
         </svg>
       )}
-      {current === 'pink' && (
+      {current === 'light' && (
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M15.5 11A7 7 0 0 1 7 2.5a7 7 0 1 0 8.5 8.5z" />
         </svg>
@@ -143,9 +143,9 @@ function ThemeToggle({ themeIdx, onToggle }) {
 }
 
 const METHOD_META = {
-  Revolut: { color: '#8a5a76', label: 'Revolut', country: 'UK' },
-  Zelle:   { color: '#d97a8c', label: 'Zelle',   country: 'US' },
-  SEPA:    { color: '#c89262', label: 'SEPA',    country: 'EU' },
+  Revolut: { label: 'Revolut', country: 'UK' },
+  Zelle:   { label: 'Zelle',   country: 'US' },
+  SEPA:    { label: 'SEPA',    country: 'EU' },
 };
 
 const TxTile = memo(function TxTile({ item, type, onTap }) {
@@ -279,7 +279,6 @@ const TxListItem = memo(function TxListItem({ item, type, onTap }) {
   const isReceived = type === 'received';
   const sign = isReceived ? '+' : '−';
   const meta = METHOD_META[item.method] || { country: 'Global' };
-  const color = METHOD_META[item.method]?.color;
 
   return (
     <article
@@ -302,8 +301,8 @@ const TxListItem = memo(function TxListItem({ item, type, onTap }) {
       <div className="tx-card__body">
         <div className="tx-card__main">
           <div className="tx-card__method">
-            <span className="tx-card__method-dot" style={{ background: color || 'var(--ink-mute)' }} />
-            <span className="tx-card__method-text" style={{ color: color || 'var(--ink-mute)' }}>
+            <span className={`tx-card__method-dot tx-card__method-dot--${item.method.toLowerCase()}`} />
+            <span className={`tx-card__method-text tx-card__method-text--${item.method.toLowerCase()}`}>
               {item.method} · {meta.country}
             </span>
           </div>
