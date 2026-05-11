@@ -845,11 +845,11 @@ body::after {
 }
 
 .tx-card__method-text {
-  font-size: var(--fs-card-method);
+  font-size: calc(var(--fs-card-method) + 1.5px);
   opacity: 0.85;
   line-height: 1;
-  font-weight: 500;
-  letter-spacing: 0.02em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
 /* default (warm theme) — dark colors */
@@ -1091,9 +1091,7 @@ body::after {
   justify-content: center;
 }
 
-.tx-tile__method { font-weight: 600; }
-.tx-tile__sep { opacity: 0.45; }
-.tx-tile__country { opacity: 0.85; font-weight: 600; letter-spacing: 0.04em; }
+.tx-tile__country { opacity: 0.9; font-weight: 700; letter-spacing: 0.05em; font-size: 11px; }
 
 @media (min-width: 600px) {
   .tx-tile { padding: 8px 9px 22px; border-radius: 16px; }
@@ -1406,6 +1404,23 @@ body::after {
   display: flex;
   gap: 10px;
   margin-top: 22px;
+}
+
+/* ── Receiver Form ──────────────────────────────── */
+.receiver-form { display: flex; flex-direction: column; gap: 14px; }
+
+.receiver-form__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.receiver-form__field { display: flex; flex-direction: column; gap: 5px; }
+
+.receiver-form__iban {
+  font-family: monospace;
+  letter-spacing: 0.05em;
+  font-size: 13px;
 }
 
 /* ── Exchange Modal ─────────────────────────────── */
