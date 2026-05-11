@@ -51,6 +51,14 @@ body::after {
 }
 
 :root {
+  /* ── Telegram / device safe-area insets ──────────────────────────────
+     JS overrides these at runtime via window.Telegram.WebApp.
+     Fallback to env() for non-Telegram browsers.                       */
+  --tg-inset-top:    env(safe-area-inset-top,    0px);
+  --tg-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --tg-inset-left:   env(safe-area-inset-left,   0px);
+  --tg-inset-right:  env(safe-area-inset-right,  0px);
+
   --ink: #2b1a18;
   --ink-soft: #4a3530;
   --ink-mute: rgba(60,38,32,0.55);
@@ -236,7 +244,7 @@ body::after {
   border-bottom: 1px solid rgba(255,255,255,0.4);
   box-shadow: 0 1px 0 rgba(255,255,255,0.55) inset, 0 4px 18px rgba(180,100,60,0.06);
   padding: 12px var(--space-lg);
-  padding-top: max(12px, env(safe-area-inset-top, 12px));
+  padding-top: calc(12px + var(--tg-inset-top));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1122,7 +1130,7 @@ body::after {
   align-items: flex-end;
   justify-content: space-around;
   /* padding: 10px 4px 8px; */
-  padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
+  padding-bottom: calc(8px + var(--tg-inset-bottom));
   min-height: 70px;
 }
 
@@ -2130,7 +2138,7 @@ button { font-family: inherit; }
 
 .cam-label {
   position: absolute;
-  top: max(18px, env(safe-area-inset-top, 18px));
+  top: calc(18px + var(--tg-inset-top));
   left: 50%;
   transform: translateX(-50%);
   background: rgba(0,0,0,0.45);
@@ -2148,7 +2156,7 @@ button { font-family: inherit; }
   bottom: 0;
   left: 0;
   right: 0;
-  padding: 24px 32px max(28px, env(safe-area-inset-bottom, 28px));
+  padding: 24px 32px calc(28px + var(--tg-inset-bottom));
   display: flex;
   align-items: center;
   justify-content: space-between;

@@ -1,5 +1,31 @@
 import { useState, useEffect, useRef, memo, useCallback, useMemo } from 'react';
 
+// ── Telegram Mini App safe-area hook ──────────────────────────────────────
+
+const tg = window.Telegram?.WebApp ?? null;
+
+function applyTgSafeArea() {
+  if (!tg) return;
+  const sa  = tg.safeAreaInset        ?? {};
+  const csa = tg.contentSafeAreaInset ?? {};
+  const top    = (sa.top    ?? 0) + (csa.top    ?? 0);
+  const bottom = (sa.bottom ?? 0) + (csa.bottom ?? 0);
+  const left   =  sa.left   ?? 0;
+  const right  =  sa.right  ?? 0;
+  const root = document.documentElement;
+  root.style.setProperty('--tg-inset-top',    `${top}px`);
+  root.style.setProperty('--tg-inset-bottom', `${bottom}px`);
+  root.style.setProperty('--tg-inset-left',   `${left}px`);
+  root.style.setProperty('--tg-inset-right',  `${right}px`);
+}
+
+// Theme → Telegram header/bg color map
+const TG_THEME_COLORS = {
+  dark:  { header: '#060E1C', bg: '#060E1C' },
+  light: { header: '#F0F8FF', bg: '#F0F8FF' },
+  default: { header: '#fbe5c8', bg: '#fbe5c8' },
+};
+
 const THEMES = ['dark', 'light'];
 
 function SplashLoader() {
@@ -1169,6 +1195,42 @@ export default function App() {
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
   }, []);
+
+  // Telegram Mini App initialization
+  useEffect(() => {
+    if (!tg) return;
+    tg.ready();
+    tg.expand();
+    applyTgSafeArea();
+    tg.onEvent('safeAreaChanged',        applyTgSafeArea);
+    tg.onEvent('contentSafeAreaChanged', applyTgSafeArea);
+    return () => {
+      tg.offEvent('safeAreaChanged',        applyTgSafeArea);
+      tg.offEvent('contentSafeAreaChanged', applyTgSafeArea);
+    };
+  }, []);
+
+  // Sync Telegram header/background color with theme
+  useEffect(() => {
+    if (!tg) return;
+    const key = THEMES[themeIdx] ?? 'default';
+    const colors = TG_THEME_COLORS[key] ?? TG_THEME_COLORS.default;
+    tg.setHeaderColor?.(colors.header);
+    tg.setBackgroundColor?.(colors.bg);
+  }, [themeIdx]);
+
+  // Telegram Back Button for sub-pages
+  useEffect(() => {
+    if (!tg?.BackButton) return;
+    if (activePage !== 'home') {
+      tg.BackButton.show();
+      const onBack = () => setActivePage('home');
+      tg.BackButton.onClick(onBack);
+      return () => tg.BackButton.offClick(onBack);
+    } else {
+      tg.BackButton.hide();
+    }
+  }, [activePage]);
 
   const totalReceived = useMemo(() => RECEIVED.reduce((sum, item) => sum + item.amount, 0), []);
   const totalSent = useMemo(() => SENT.reduce((sum, item) => sum + item.amount, 0), []);
