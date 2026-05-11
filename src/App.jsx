@@ -385,6 +385,7 @@ function ExchangeModal({ onClose }) {
   const [methods, setMethods] = useState([]);
   const [proposedAmount, setProposedAmount] = useState('');
   const [selectedRate, setSelectedRate] = useState(null);
+  const [showCustomInput, setShowCustomInput] = useState(false);
 
   const toggleMethod = (m) =>
     setMethods((prev) => (prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]));
@@ -399,6 +400,17 @@ function ExchangeModal({ onClose }) {
       setSelectedRate(key);
       setProposedAmount(String(value));
     }
+  };
+
+  const handleShowCustom = () => {
+    setShowCustomInput(true);
+    setSelectedRate(null);
+    setProposedAmount('');
+  };
+
+  const handleHideCustom = () => {
+    setShowCustomInput(false);
+    setProposedAmount('');
   };
 
   return (
@@ -501,59 +513,94 @@ function ExchangeModal({ onClose }) {
 
         <div className="exchange-modal__section">
           <div className="price-row">
-            <div className="price-col">
-              <p className="price-col__label">Bonbast Price</p>
-              <button
-                type="button"
-                className={`price-col__card ${selectedRate === 'bonbast' ? 'price-col__card--bonbast' : ''}`}
-                onClick={() => handleRateSelect('bonbast', BONBAST_RATE)}
-                aria-pressed={selectedRate === 'bonbast'}
-              >
-                <span className="price-col__check" aria-hidden="true">
-                  {selectedRate === 'bonbast'
-                    ? <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M2 5.5l2.5 2.5L9 3" /></svg>
-                    : <span className="price-col__dot" />}
-                </span>
-                <span className="price-col__value">﷼ {BONBAST_RATE.toLocaleString()}</span>
-              </button>
-            </div>
+            <div className={`price-row__slider ${showCustomInput ? 'price-row__slider--shifted' : ''}`}>
 
-            <div className="price-col">
-              <p className="price-col__label">Urgent Price</p>
-              <button
-                type="button"
-                className={`price-col__card ${selectedRate === 'urgent' ? 'price-col__card--urgent' : ''}`}
-                onClick={() => handleRateSelect('urgent', URGENT_RATE)}
-                aria-pressed={selectedRate === 'urgent'}
-              >
-                <span className="price-col__check" aria-hidden="true">
-                  {selectedRate === 'urgent'
-                    ? <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M2 5.5l2.5 2.5L9 3" /></svg>
-                    : <span className="price-col__dot" />}
-                </span>
-                <span className="price-col__value">﷼ {URGENT_RATE.toLocaleString()}</span>
-              </button>
-            </div>
+              {/* Panel 1: دو کارت + دکمه Custom */}
+              <div className="price-row__panel">
+                <div className="price-col">
+                  <p className="price-col__label">Bonbast Price</p>
+                  <button
+                    type="button"
+                    className={`price-col__card ${selectedRate === 'bonbast' ? 'price-col__card--bonbast' : ''}`}
+                    onClick={() => handleRateSelect('bonbast', BONBAST_RATE)}
+                    aria-pressed={selectedRate === 'bonbast'}
+                  >
+                    <span className="price-col__check" aria-hidden="true">
+                      {selectedRate === 'bonbast'
+                        ? <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M2 5.5l2.5 2.5L9 3" /></svg>
+                        : <span className="price-col__dot" />}
+                    </span>
+                    <span className="price-col__value">{BONBAST_RATE.toLocaleString()}</span>
+                  </button>
+                </div>
 
-            <div className="price-col price-col--input">
-              <p className="price-col__label">
-                Proposed Amount
-                <span className="input-label__hint" style={{ marginLeft: 4 }}>Rial</span>
-              </p>
-              <div className="input-wrap">
-                <span className="input-wrap__prefix input-wrap__prefix--rial">﷼</span>
-                <input
-                  className="input input--prefixed price-col__input"
-                  style={{ paddingLeft: prefixPadding('﷼﷼') }}
-                  type="number"
-                  placeholder="0"
-                  inputMode="numeric"
-                  min="0"
-                  disabled={selectedRate !== null}
-                  value={proposedAmount}
-                  onChange={(e) => setProposedAmount(e.target.value)}
-                />
+                <div className="price-col">
+                  <p className="price-col__label">Urgent Price</p>
+                  <button
+                    type="button"
+                    className={`price-col__card ${selectedRate === 'urgent' ? 'price-col__card--urgent' : ''}`}
+                    onClick={() => handleRateSelect('urgent', URGENT_RATE)}
+                    aria-pressed={selectedRate === 'urgent'}
+                  >
+                    <span className="price-col__check" aria-hidden="true">
+                      {selectedRate === 'urgent'
+                        ? <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M2 5.5l2.5 2.5L9 3" /></svg>
+                        : <span className="price-col__dot" />}
+                    </span>
+                    <span className="price-col__value">{URGENT_RATE.toLocaleString()}</span>
+                  </button>
+                </div>
+
+                <div className="price-col">
+                  <p className="price-col__label">&nbsp;</p>
+                  <button
+                    type="button"
+                    className="price-col__card price-col__card--custom"
+                    onClick={handleShowCustom}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M6.5 2v9M2 6.5h9" />
+                    </svg>
+                    Custom
+                  </button>
+                </div>
               </div>
+
+              {/* Panel 2: input قیمت دلخواه */}
+              <div className="price-row__panel">
+                <div className="price-col" style={{ flex: 1 }}>
+                  <p className="price-col__label">
+                    Proposed Amount
+                    <span className="input-label__hint" style={{ marginLeft: 4 }}>Rial</span>
+                  </p>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      className="price-col__back-btn"
+                      onClick={handleHideCustom}
+                      aria-label="Back"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 2L4 7l5 5" />
+                      </svg>
+                    </button>
+                    <div className="input-wrap" style={{ flex: 1 }}>
+                      {/* <span className="input-wrap__prefix input-wrap__prefix--rial">﷼</span> */}
+                      <input
+                        className="input input--prefixed price-col__input"
+                        style={{ paddingLeft: prefixPadding('TMN') }}
+                        type="number"
+                        placeholder="0"
+                        inputMode="numeric"
+                        min="0"
+                        value={proposedAmount}
+                        onChange={(e) => setProposedAmount(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
         </div>

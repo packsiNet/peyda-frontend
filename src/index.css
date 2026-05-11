@@ -1413,8 +1413,23 @@ body::after {
 }
 
 
-/* ── Price Row (3-column) ───────────────────────── */
+/* ── Price Row (sliding) ────────────────────────── */
 .price-row {
+  overflow: hidden;
+}
+
+.price-row__slider {
+  display: flex;
+  width: 200%;
+  transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.price-row__slider--shifted {
+  transform: translateX(-50%);
+}
+
+.price-row__panel {
+  width: 50%;
   display: flex;
   gap: 8px;
   align-items: flex-end;
@@ -1425,10 +1440,6 @@ body::after {
   flex-direction: column;
   gap: 5px;
   flex: 1;
-}
-
-.price-col--input {
-  flex: 1.3;
 }
 
 .price-col__label {
@@ -1512,6 +1523,44 @@ body::after {
 
 .price-col__input {
   height: 48px;
+}
+
+.price-col__card--custom {
+  justify-content: center;
+  gap: 5px;
+  border-style: dashed;
+  border-color: rgba(180,100,60,0.25);
+  color: var(--ink-mute);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.price-col__card--custom:hover {
+  border-color: rgba(213,107,37,0.4);
+  color: var(--ink);
+  background: rgba(255,244,227,0.4);
+  border-style: dashed;
+}
+
+.price-col__back-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 14px;
+  border: 1.5px solid rgba(180,100,60,0.15);
+  background: rgba(255,255,255,0.38);
+  color: var(--ink-mute);
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.price-col__back-btn:hover {
+  border-color: rgba(213,107,37,0.3);
+  color: var(--ink);
+  background: rgba(255,244,227,0.4);
 }
 
 .price-col__value {
