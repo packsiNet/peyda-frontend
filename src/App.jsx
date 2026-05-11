@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, memo, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 
 // ── Telegram Mini App safe-area hook ──────────────────────────────────────
 
@@ -449,6 +450,12 @@ function ExchangeModal({ onClose }) {
   const step1Valid = !!amount && methods.length > 0;
   const step2Valid = rcvFirstName.trim() && rcvLastName.trim() && rcvNationalId.trim() && rcvMobile.trim() && rcvIban.trim();
 
+  const amtNum = parseFloat(amount) || 0;
+  const rateNum = parseFloat(proposedAmount) || 0;
+  const exchangeAmt = Math.round(amtNum * rateNum);
+  const commissionAmt = Math.round(exchangeAmt * 0.01);
+  const totalAmt = exchangeAmt + commissionAmt;
+
   const handleSubmit = () => {
     if (!step2Valid) return;
     onClose();
@@ -665,6 +672,25 @@ function ExchangeModal({ onClose }) {
           <>
             <div className="sheet__title">Receiver Information</div>
             <p className="sheet__sub">Enter the recipient's details to complete the request</p>
+
+            <div className="exchange-summary">
+              <div className="exchange-summary__row">
+                <span>{amtNum.toLocaleString()} {currSymbol}</span>
+                <span className="exchange-summary__eq">{'='}</span>
+                <span>{exchangeAmt.toLocaleString()} mt</span>
+              </div>
+              <div className="exchange-summary__row exchange-summary__row--commission">
+                <span>1% commission</span>
+                <span className="exchange-summary__eq">{'='}</span>
+                <span>{commissionAmt.toLocaleString()}</span>
+              </div>
+              <div className="exchange-summary__divider" />
+              <div className="exchange-summary__row exchange-summary__row--total">
+                <span>TOTAL</span>
+                <span className="exchange-summary__eq">{'='}</span>
+                <span>{totalAmt.toLocaleString()}</span>
+              </div>
+            </div>
 
             <div className="exchange-modal__section">
               <div className="receiver-form">
@@ -990,7 +1016,7 @@ function CameraCapture({ label, facingMode, icon, onCapture, preview }) {
         )}
       </button>
 
-      {open && (
+      {open && createPortal(
         <div className="cam-overlay">
           <canvas ref={canvasRef} style={{ display: 'none' }} />
           {error ? (
@@ -1014,7 +1040,8 @@ function CameraCapture({ label, facingMode, icon, onCapture, preview }) {
               </div>
             </>
           )}
-        </div>
+        </div>,
+        document.querySelector('.app-content') ?? document.body
       )}
     </div>
   );
@@ -1150,8 +1177,20 @@ function IdentityContent({ onDone }) {
   const [birthDay, setBirthDay] = useState('');
   const [docPhoto, setDocPhoto] = useState(null);
   const [selfiePhoto, setSelfiePhoto] = useState(null);
+  const [phoneVerified, setPhoneVerified] = useState(false);
 
   const canSubmit = firstName.trim() && lastName.trim() && birthDay && docPhoto && selfiePhoto;
+
+  function handleVerifyPhone() {
+    const tg = window.Telegram?.WebApp;
+    if (tg?.requestContact) {
+      tg.requestContact((shared) => {
+        if (shared) setPhoneVerified(true);
+      });
+    } else {
+      setPhoneVerified(true);
+    }
+  }
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -1189,9 +1228,37 @@ function IdentityContent({ onDone }) {
             autoComplete="family-name"
           />
         </div>
-        <div className="identity-field">
-          <label className="identity-field__label" htmlFor="id-birthday">Birthday</label>
-          <DatePickerField id="id-birthday" value={birthDay} onChange={setBirthDay} />
+        <div className="identity-field-row">
+          <div className="identity-field">
+            <label className="identity-field__label" htmlFor="id-birthday">Birthday</label>
+            <DatePickerField id="id-birthday" value={birthDay} onChange={setBirthDay} />
+          </div>
+          <div className="identity-field">
+            <label className="identity-field__label">Mobile</label>
+            <button
+              type="button"
+              className={`identity-verify-btn${phoneVerified ? ' identity-verify-btn--verified' : ''}`}
+              onClick={handleVerifyPhone}
+              disabled={phoneVerified}
+            >
+              {phoneVerified ? (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M2 7l3.5 3.5L12 3" />
+                  </svg>
+                  Verified
+                </>
+              ) : (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="1" width="8" height="12" rx="2" />
+                    <path d="M6 10h2" />
+                  </svg>
+                  Verify Mobile
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
