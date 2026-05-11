@@ -818,13 +818,138 @@ function CameraCapture({ label, capture, icon, onCapture, preview }) {
   );
 }
 
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const WEEKDAY_LABELS = ['Mo','Tu','We','Th','Fr','Sa','Su'];
+
+function DatePickerField({ id, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState('calendar');
+  const today = new Date();
+
+  const parsed = value ? new Date(value + 'T12:00:00') : null;
+  const [viewYear, setViewYear] = useState(() => parsed?.getFullYear() ?? today.getFullYear() - 25);
+  const [viewMonth, setViewMonth] = useState(() => parsed?.getMonth() ?? today.getMonth());
+
+  const displayValue = parsed
+    ? `${String(parsed.getDate()).padStart(2,'0')} ${MONTH_NAMES[parsed.getMonth()]} ${parsed.getFullYear()}`
+    : '';
+
+  function getDays() {
+    const firstDow = new Date(viewYear, viewMonth, 1).getDay();
+    const pad = (firstDow + 6) % 7;
+    const count = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const cells = Array(pad).fill(null);
+    for (let d = 1; d <= count; d++) cells.push(d);
+    return cells;
+  }
+
+  function prevMonth() {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); }
+    else setViewMonth(m => m - 1);
+  }
+
+  function nextMonth() {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1); }
+    else setViewMonth(m => m + 1);
+  }
+
+  function selectDay(day) {
+    const m = String(viewMonth + 1).padStart(2, '0');
+    const d = String(day).padStart(2, '0');
+    onChange(`${viewYear}-${m}-${d}`);
+    setOpen(false);
+  }
+
+  function openPicker() {
+    if (parsed) { setViewYear(parsed.getFullYear()); setViewMonth(parsed.getMonth()); }
+    setMode('calendar');
+    setOpen(true);
+  }
+
+  const maxYear = today.getFullYear() - 5;
+  const minYear = today.getFullYear() - 100;
+  const yearList = [];
+  for (let y = maxYear; y >= minYear; y--) yearList.push(y);
+
+  const days = getDays();
+  const selDay = parsed?.getDate();
+  const selMonth = parsed?.getMonth();
+  const selYear = parsed?.getFullYear();
+
+  return (
+    <div className="datepicker">
+      <button type="button" id={id} className={`datepicker__trigger identity-field__input${!value ? ' datepicker__trigger--empty' : ''}`} onClick={openPicker}>
+        <span>{value ? displayValue : 'Select date of birth'}</span>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <rect x="2" y="3" width="12" height="11" rx="2" />
+          <path d="M5 1v2M11 1v2M2 7h12" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="datepicker__overlay" onClick={() => setOpen(false)}>
+          <div className="datepicker__panel" onClick={e => e.stopPropagation()}>
+            {mode === 'year' ? (
+              <>
+                <div className="datepicker__top">
+                  <span className="datepicker__heading">Select Year</span>
+                  <button type="button" className="datepicker__close-btn" onClick={() => setMode('calendar')}>
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M2 2l10 10M12 2L2 12"/></svg>
+                  </button>
+                </div>
+                <div className="datepicker__year-list">
+                  {yearList.map(y => (
+                    <button key={y} type="button" className={`datepicker__year-btn${y === viewYear ? ' is-active' : ''}`}
+                      onClick={() => { setViewYear(y); setMode('calendar'); }}>
+                      {y}
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="datepicker__top">
+                  <button type="button" className="datepicker__arrow" onClick={prevMonth}>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="10,3 5,8 10,13"/></svg>
+                  </button>
+                  <button type="button" className="datepicker__month-btn" onClick={() => setMode('year')}>
+                    {MONTH_NAMES[viewMonth]} {viewYear}
+                  </button>
+                  <button type="button" className="datepicker__arrow" onClick={nextMonth}>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6,3 11,8 6,13"/></svg>
+                  </button>
+                </div>
+
+                <div className="datepicker__weekdays">
+                  {WEEKDAY_LABELS.map(d => <span key={d} className="datepicker__weekday">{d}</span>)}
+                </div>
+
+                <div className="datepicker__grid">
+                  {days.map((day, i) => (
+                    <button key={i} type="button" disabled={!day}
+                      className={`datepicker__day${!day ? ' datepicker__day--empty' : ''}${day && day === selDay && viewMonth === selMonth && viewYear === selYear ? ' is-selected' : ''}`}
+                      onClick={() => day && selectDay(day)}>
+                      {day ?? ''}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function IdentityContent({ onDone }) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [birthDay, setBirthDay] = useState('');
   const [docPhoto, setDocPhoto] = useState(null);
   const [selfiePhoto, setSelfiePhoto] = useState(null);
 
-  const canSubmit = firstName.trim() && lastName.trim() && docPhoto && selfiePhoto;
+  const canSubmit = firstName.trim() && lastName.trim() && birthDay && docPhoto && selfiePhoto;
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -861,6 +986,10 @@ function IdentityContent({ onDone }) {
             onChange={(e) => setLastName(e.target.value)}
             autoComplete="family-name"
           />
+        </div>
+        <div className="identity-field">
+          <label className="identity-field__label" htmlFor="id-birthday">Birthday</label>
+          <DatePickerField id="id-birthday" value={birthDay} onChange={setBirthDay} />
         </div>
       </div>
 

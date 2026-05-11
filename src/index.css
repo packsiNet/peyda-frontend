@@ -1834,6 +1834,212 @@ button { font-family: inherit; }
   background: rgba(255,255,255,0.75);
 }
 
+/* ── DatePicker ──────────────────────────────────────────────────────────── */
+
+.datepicker {
+  width: 100%;
+}
+
+.datepicker__trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  text-align: left;
+  gap: 8px;
+}
+
+.datepicker__trigger--empty span {
+  color: var(--ink-dim);
+}
+
+.datepicker__trigger svg {
+  flex-shrink: 0;
+  color: var(--ink-mute);
+}
+
+.datepicker__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.datepicker__panel {
+  width: 100%;
+  max-width: 320px;
+  background: linear-gradient(160deg, rgba(255,255,255,0.88) 0%, rgba(255,255,255,0.72) 100%);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid rgba(255,255,255,0.75);
+  border-radius: 20px;
+  box-shadow:
+    0 2px 0 rgba(255,255,255,0.90) inset,
+    0 20px 60px rgba(120,70,40,0.22),
+    0 4px 16px rgba(120,70,40,0.10);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* header row */
+.datepicker__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.datepicker__heading {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  flex: 1;
+}
+
+.datepicker__month-btn {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: background 0.15s;
+  text-align: center;
+}
+
+.datepicker__month-btn:hover {
+  background: rgba(255,255,255,0.55);
+}
+
+.datepicker__arrow,
+.datepicker__close-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.45);
+  color: var(--ink-soft);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+
+.datepicker__arrow:hover,
+.datepicker__close-btn:hover {
+  background: rgba(255,255,255,0.75);
+  color: var(--ink);
+}
+
+/* weekday labels */
+.datepicker__weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.datepicker__weekday {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ink-mute);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 4px 0;
+}
+
+/* day grid */
+.datepicker__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.datepicker__day {
+  aspect-ratio: 1;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, color 0.12s;
+}
+
+.datepicker__day:hover:not(:disabled):not(.datepicker__day--empty) {
+  background: rgba(245,145,72,0.18);
+  color: var(--amber-deep);
+}
+
+.datepicker__day.is-selected {
+  background: linear-gradient(135deg, var(--amber) 0%, var(--amber-deep) 100%);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(213,107,37,0.35);
+}
+
+.datepicker__day--empty,
+.datepicker__day:disabled {
+  pointer-events: none;
+  opacity: 0;
+}
+
+/* year list */
+.datepicker__year-list {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.datepicker__year-list::-webkit-scrollbar { display: none; }
+
+.datepicker__year-btn {
+  border: none;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.38);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-family: inherit;
+  padding: 8px 4px;
+  transition: background 0.12s, color 0.12s;
+}
+
+.datepicker__year-btn:hover {
+  background: rgba(245,145,72,0.18);
+  color: var(--amber-deep);
+}
+
+.datepicker__year-btn.is-active {
+  background: linear-gradient(135deg, var(--amber) 0%, var(--amber-deep) 100%);
+  color: #fff;
+  font-weight: 700;
+}
+
 /* Camera capture cards */
 .id-cameras {
   display: grid;

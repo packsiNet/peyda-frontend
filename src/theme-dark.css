@@ -448,6 +448,52 @@ html[data-theme="dark"] .id-camera-btn--captured {
   border-color: var(--leaf);
 }
 
+html[data-theme="dark"] .datepicker__panel {
+  background: linear-gradient(160deg, rgba(12, 30, 66, 0.97) 0%, rgba(6, 14, 32, 0.94) 100%);
+  border: 1px solid rgba(60, 120, 200, 0.28);
+  box-shadow:
+    0 2px 0 rgba(80, 150, 255, 0.10) inset,
+    0 20px 60px rgba(3, 8, 16, 0.70),
+    0 4px 16px rgba(3, 8, 16, 0.40);
+}
+
+html[data-theme="dark"] .datepicker__month-btn:hover {
+  background: rgba(22, 46, 88, 0.65);
+}
+
+html[data-theme="dark"] .datepicker__arrow,
+html[data-theme="dark"] .datepicker__close-btn {
+  background: rgba(22, 46, 88, 0.55);
+}
+
+html[data-theme="dark"] .datepicker__arrow:hover,
+html[data-theme="dark"] .datepicker__close-btn:hover {
+  background: rgba(30, 60, 110, 0.80);
+}
+
+html[data-theme="dark"] .datepicker__day:hover:not(:disabled):not(.datepicker__day--empty) {
+  background: rgba(56, 152, 255, 0.22);
+  color: #90CAF9;
+}
+
+html[data-theme="dark"] .datepicker__day.is-selected {
+  background: linear-gradient(135deg, #1565C0 0%, #0D47A1 100%);
+  box-shadow: 0 2px 8px rgba(14, 80, 180, 0.50);
+}
+
+html[data-theme="dark"] .datepicker__year-btn {
+  background: rgba(22, 46, 88, 0.45);
+}
+
+html[data-theme="dark"] .datepicker__year-btn:hover {
+  background: rgba(56, 152, 255, 0.22);
+  color: #90CAF9;
+}
+
+html[data-theme="dark"] .datepicker__year-btn.is-active {
+  background: linear-gradient(135deg, #1565C0 0%, #0D47A1 100%);
+}
+
 html[data-theme="dark"] .identity-submit {
   background: linear-gradient(135deg, #1565C0 0%, #0D47A1 100%);
   box-shadow: 0 4px 18px rgba(14, 80, 180, 0.45);
