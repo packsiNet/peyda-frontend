@@ -138,6 +138,18 @@ html[data-theme="light"] .p2p-header__avatar {
     0 0 0 0.5px rgba(255, 255, 255, 0.45);
 }
 
+html[data-theme="light"] .help-btn {
+  border-color: rgba(25, 100, 185, 0.45);
+  background: rgba(25, 100, 185, 0.1);
+  color: var(--ink-soft);
+}
+html[data-theme="light"] .help-btn:hover,
+html[data-theme="light"] .help-btn--active {
+  background: rgba(25, 100, 185, 0.18);
+  border-color: rgba(25, 100, 185, 0.75);
+  color: var(--ink);
+}
+
 /* ── Filter bar ──────────────────────────────────────────────────────────── */
 
 html[data-theme="light"] .p2p-filter-btn {

@@ -477,7 +477,10 @@ function ExchangeModal({ onClose }) {
 
         {step === 1 ? (
           <>
-            <div className="sheet__title">Exchange Request</div>
+            <div className="sheet__title-row">
+              <div className="sheet__title">Exchange Request</div>
+              <ExchangeHelp />
+            </div>
             <p className="sheet__sub">Submit a send or receive money request</p>
 
             <div className="exchange-modal__section">
@@ -836,6 +839,217 @@ function ExchangeModal({ onClose }) {
             </div>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── Help Balloon (reusable) ───────────────────────────────────
+function HelpBalloon({ anchorRef, onClose, title, children }) {
+  const ref = useRef(null);
+  const [pos, setPos] = useState(null);
+
+  useEffect(() => {
+    if (anchorRef?.current) {
+      const r = anchorRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 10, left: r.left - 8 });
+    }
+  }, [anchorRef]);
+
+  useEffect(() => {
+    function onPointerDown(e) {
+      if (
+        ref.current && !ref.current.contains(e.target) &&
+        anchorRef?.current && !anchorRef.current.contains(e.target)
+      ) onClose();
+    }
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [onClose, anchorRef]);
+
+  if (!pos) return null;
+
+  return createPortal(
+    <div
+      className="help-balloon"
+      ref={ref}
+      style={{ top: pos.top, left: pos.left }}
+      role="dialog"
+      aria-label="Help"
+    >
+      <div className="help-balloon__arrow" aria-hidden="true" />
+      <div className="help-balloon__head">
+        <span className="help-balloon__title">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="7" cy="7" r="5.5" />
+            <path d="M7 4.5v3.5M7 9.5h.01" />
+          </svg>
+          {title}
+        </span>
+        <button type="button" className="help-balloon__close" onClick={onClose} aria-label="Close help">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M1 1l10 10M11 1L1 11" />
+          </svg>
+        </button>
+      </div>
+      {children}
+    </div>,
+    document.body
+  );
+}
+
+// ── Help button + balloon for the main header ─────────────────
+function HeaderHelp() {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef(null);
+  return (
+    <div className="help-anchor">
+      <button
+        ref={btnRef}
+        type="button"
+        className={`help-btn${open ? ' help-btn--active' : ''}`}
+        aria-label="Help"
+        aria-expanded={open}
+        onClick={() => setOpen(v => !v)}
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="6" cy="6" r="4.5" />
+          <path d="M4.5 4.8a1.5 1.5 0 0 1 3 .5c0 1-1.5 1.2-1.5 2.2M6 9h.01" />
+        </svg>
+      </button>
+      {open && (
+        <HelpBalloon anchorRef={btnRef} onClose={() => setOpen(false)} title="About PayDa">
+          <p className="help-balloon__desc">
+            PayDa is a peer-to-peer payment platform for fast and secure currency exchange.
+          </p>
+          <ul className="help-balloon__list">
+            <li>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 6l2.5 2.5L10 3" /></svg>
+              Send &amp; receive money internationally
+            </li>
+            <li>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 6l2.5 2.5L10 3" /></svg>
+              Exchange via Revolut, Zelle, SEPA &amp; more
+            </li>
+            <li>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 6l2.5 2.5L10 3" /></svg>
+              Track all transactions in real-time
+            </li>
+            <li>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 6l2.5 2.5L10 3" /></svg>
+              Verified identity &amp; secure transfers
+            </li>
+          </ul>
+        </HelpBalloon>
+      )}
+    </div>
+  );
+}
+
+// ── Help button + balloon for Exchange modal ──────────────────
+function ExchangeHelp() {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef(null);
+  return (
+    <div className="help-anchor">
+      <button
+        ref={btnRef}
+        type="button"
+        className={`help-btn help-btn--dark${open ? ' help-btn--active' : ''}`}
+        aria-label="Exchange help"
+        aria-expanded={open}
+        onClick={() => setOpen(v => !v)}
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="6" cy="6" r="4.5" />
+          <path d="M4.5 4.8a1.5 1.5 0 0 1 3 .5c0 1-1.5 1.2-1.5 2.2M6 9h.01" />
+        </svg>
+      </button>
+      {open && (
+        <HelpBalloon anchorRef={btnRef} onClose={() => setOpen(false)} title="Exchange Guide">
+          <p className="help-balloon__desc">
+            Submit a currency exchange request in two steps.
+          </p>
+          <ul className="help-balloon__list">
+            <li>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 6l2.5 2.5L10 3" /></svg>
+              Choose Send or Receive direction
+            </li>
+            <li>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 6l2.5 2.5L10 3" /></svg>
+              Enter amount &amp; select payment method
+            </li>
+            <li>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 6l2.5 2.5L10 3" /></svg>
+              Pick Bonbast, Urgent, or custom rate
+            </li>
+            <li>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 6l2.5 2.5L10 3" /></svg>
+              Add receiver info &amp; confirm — 1% commission applies
+            </li>
+          </ul>
+        </HelpBalloon>
+      )}
+    </div>
+  );
+}
+
+// ── Terms & Conditions Modal ──────────────────────────────────
+const TERMS_KEY = 'payda_terms_v1';
+
+function TermsModal({ onAccept }) {
+  const [checked, setChecked] = useState(false);
+
+  return (
+    <div className="terms-backdrop">
+      <div className="terms-sheet">
+        <div className="terms-sheet__handle" />
+
+        <div className="terms-header">
+          <div className="terms-header__icon" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M7 4h14a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" />
+              <path d="M10 9h8M10 13h8M10 17h5" />
+            </svg>
+          </div>
+          <h2 className="terms-header__title">Terms &amp; Conditions</h2>
+          <p className="terms-header__sub">Please read carefully before continuing</p>
+        </div>
+
+        <div className="terms-body" dir="ltr" lang="fa">
+          <p className="terms-body__greeting">Dear User</p>
+          <p className="terms-body__text">
+            We are very happy that you have joined the<span className="terms-body__brand">Payda</span> group.
+          </p>
+        </div>
+
+        <div className="terms-footer">
+          <label className="terms-check">
+            <input
+              type="checkbox"
+              className="terms-check__input"
+              checked={checked}
+              onChange={(e) => setChecked(e.target.checked)}
+            />
+            <span className="terms-check__box" aria-hidden="true">
+              {checked && (
+                <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1.5 5.5l3 3L9.5 2" />
+                </svg>
+              )}
+            </span>
+            <span className="terms-check__label">I have read and accept the terms and conditions</span>
+          </label>
+
+          <button
+            type="button"
+            className="terms-confirm-btn"
+            disabled={!checked}
+            onClick={onAccept}
+          >
+            Confirm
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1492,6 +1706,7 @@ export default function App() {
   const [layoutMode, setLayoutMode] = useState('list');
   const [tallScreen, setTallScreen] = useState(() => window.matchMedia('(min-height: 500px)').matches);
   const [loading, setLoading] = useState(true);
+  const [termsAccepted, setTermsAccepted] = useState(() => localStorage.getItem(TERMS_KEY) === 'true');
 
   useEffect(() => {
     const t = setTimeout(() => setLoading(false), 4000);
@@ -1574,6 +1789,15 @@ export default function App() {
 
   if (loading) return <SplashLoader />;
 
+  if (!termsAccepted) {
+    return (
+      <TermsModal onAccept={() => {
+        localStorage.setItem(TERMS_KEY, 'true');
+        setTermsAccepted(true);
+      }} />
+    );
+  }
+
   const SUB_PAGES = { identity: 'Identity Verification', profile: 'Profile' };
   const isSubPage = activePage in SUB_PAGES;
 
@@ -1582,7 +1806,10 @@ export default function App() {
     : (
       <header className="p2p-header">
         <div className="p2p-header__text-group">
-          <h1 className="p2p-header__title">P2P <b>PayDa</b></h1>
+          <div className="p2p-header__title-row">
+            <h1 className="p2p-header__title">P2P <b>PayDa</b></h1>
+            <HeaderHelp />
+          </div>
           <p className="p2p-header__sub">All transactions</p>
         </div>
         <div className="p2p-header__right">
