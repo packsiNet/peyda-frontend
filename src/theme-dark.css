@@ -241,13 +241,15 @@ html[data-theme="dark"] .p2p-list-col__head--s { color: var(--amber); }
 
 html[data-theme="dark"] .tx-card {
   position: relative;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  background: linear-gradient(135deg, rgba(38, 60, 100, 0.42) 0%, rgba(18, 32, 60, 0.32) 100%);
+  /* backdrop-filter dropped here — was blur(28px) saturate(180%) on 20-40
+     simultaneously visible cards, the dominant cause of scroll jank.
+     Replaced by a richer translucent gradient that reads as glass over the
+     dark canvas without per-frame compositor work. */
   border: 0.5px solid rgba(255, 255, 255, 0.12);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.10) inset,
-    0 12px 40px rgba(0, 0, 0, 0.22),
+    0 8px 24px rgba(0, 0, 0, 0.28),
     0 1px 3px rgba(0, 0, 0, 0.22);
 }
 
@@ -303,12 +305,12 @@ html[data-theme="dark"] .tx-card--sent .tx-card__side {
 html[data-theme="dark"] .tx-tile {
   position: relative;
   border: 0.5px solid rgba(255, 255, 255, 0.12);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  background: linear-gradient(135deg, rgba(38, 60, 100, 0.42) 0%, rgba(18, 32, 60, 0.30) 100%);
+  /* backdrop-filter dropped — same reason as .tx-card; grid can show 20-40
+     tiles, each one blurring its backdrop was the main scroll bottleneck. */
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.10) inset,
-    0 12px 40px rgba(0, 0, 0, 0.28),
+    0 8px 24px rgba(0, 0, 0, 0.32),
     0 1px 3px rgba(0, 0, 0, 0.22);
 }
 

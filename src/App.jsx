@@ -29,7 +29,9 @@ const TG_THEME_COLORS = {
 
 const THEMES = ['dark', 'light'];
 
-function SplashLoader() {
+const SUB_PAGES = { identity: 'Identity Verification', profile: 'Profile' };
+
+const SplashLoader = memo(function SplashLoader() {
   return (
     <div className="splash-loader" aria-label="Loading" role="status">
       <div className="splash-loader__orbs" aria-hidden="true">
@@ -142,9 +144,9 @@ function SplashLoader() {
       <div className="splash-loader__star s6" aria-hidden="true" />
     </div>
   );
-}
+});
 
-function ThemeToggle({ themeIdx, onToggle }) {
+const ThemeToggle = memo(function ThemeToggle({ themeIdx, onToggle }) {
   const current = THEMES[themeIdx];
 
   return (
@@ -167,7 +169,7 @@ function ThemeToggle({ themeIdx, onToggle }) {
       )}
     </button>
   );
-}
+});
 
 const METHOD_META = {
   Revolut: { label: 'Revolut', country: 'UK' },
@@ -214,7 +216,7 @@ const FILTERS = [
   { id: 'sent', label: 'Sent', cls: 'is-s' },
 ];
 
-function FilterIcon({ id, active }) {
+const FilterIcon = memo(function FilterIcon({ id, active }) {
   const stroke = active
     ? id === 'received'
       ? 'var(--leaf-deep)'
@@ -247,9 +249,9 @@ function FilterIcon({ id, active }) {
       <path d="M6.5 11V3M3.5 6l3-3 3 3" />
     </svg>
   );
-}
+});
 
-function LayoutToggleBtn({ layout, onToggle }) {
+const LayoutToggleBtn = memo(function LayoutToggleBtn({ layout, onToggle }) {
   const isTile = layout === 'tile';
   return (
     <button
@@ -274,9 +276,9 @@ function LayoutToggleBtn({ layout, onToggle }) {
       )}
     </button>
   );
-}
+});
 
-function FilterBar({ active, onChange, layout, onToggleLayout }) {
+const FilterBar = memo(function FilterBar({ active, onChange, layout, onToggleLayout }) {
   return (
     <div role="toolbar" aria-label="Filter transactions" className="p2p-filterbar">
       <LayoutToggleBtn layout={layout} onToggle={onToggleLayout} />
@@ -298,7 +300,7 @@ function FilterBar({ active, onChange, layout, onToggleLayout }) {
       })}
     </div>
   );
-}
+});
 
 const TxListItem = memo(function TxListItem({ item, type, onTap }) {
   const isReceived = type === 'received';
@@ -926,7 +928,7 @@ function HelpBalloon({ anchorRef, onClose, title, children }) {
 }
 
 // ── Help button + balloon for the main header ─────────────────
-function HeaderHelp() {
+const HeaderHelp = memo(function HeaderHelp() {
   const [open, setOpen] = useState(false);
   const btnRef = useRef(null);
   return (
@@ -971,10 +973,10 @@ function HeaderHelp() {
       )}
     </div>
   );
-}
+});
 
 // ── Help button + balloon for Exchange modal ──────────────────
-function ExchangeHelp() {
+const ExchangeHelp = memo(function ExchangeHelp() {
   const [open, setOpen] = useState(false);
   const btnRef = useRef(null);
   return (
@@ -1019,12 +1021,12 @@ function ExchangeHelp() {
       )}
     </div>
   );
-}
+});
 
 // ── Terms & Conditions Modal ──────────────────────────────────
 const TERMS_KEY = 'payda_terms_v1';
 
-function TermsModal({ onAccept }) {
+const TermsModal = memo(function TermsModal({ onAccept }) {
   const [checked, setChecked] = useState(false);
 
   return (
@@ -1080,11 +1082,11 @@ function TermsModal({ onAccept }) {
       </div>
     </div>
   );
-}
+});
 
 // ── Shared Layout ─────────────────────────────────────────────────
 
-function BgOrbs() {
+const BgOrbs = memo(function BgOrbs() {
   return (
     <div className="bg-orbs" aria-hidden="true">
       <div className="bg-orb bg-orb--1" />
@@ -1094,9 +1096,9 @@ function BgOrbs() {
       <div className="bg-orb bg-orb--5" />
     </div>
   );
-}
+});
 
-function PageHeader({ title, onBack }) {
+const PageHeader = memo(function PageHeader({ title, onBack }) {
   return (
     <header className="p2p-header p2p-header--sub">
       <button type="button" className="p2p-header__back" onClick={onBack} aria-label="Back">
@@ -1108,9 +1110,9 @@ function PageHeader({ title, onBack }) {
       <div className="p2p-header__spacer" />
     </header>
   );
-}
+});
 
-function AppTabBar({ activePage, onNavigate, onProfile, onExchange }) {
+const AppTabBar = memo(function AppTabBar({ activePage, onNavigate, onProfile, onExchange }) {
   return (
     <nav className="p2p-tabbar" aria-label="Main navigation">
       <button type="button" className={`p2p-tab ${activePage === 'home' ? 'is-active' : ''}`} onClick={() => onNavigate('home')} aria-label="Home">
@@ -1162,7 +1164,7 @@ function AppTabBar({ activePage, onNavigate, onProfile, onExchange }) {
       </button>
     </nav>
   );
-}
+});
 
 function AppShell({ header, children, activePage, onNavigate, onProfile, onExchange }) {
   return (
@@ -1184,7 +1186,7 @@ function AppShell({ header, children, activePage, onNavigate, onProfile, onExcha
   );
 }
 
-function PlaceholderPage({ title, icon }) {
+const PlaceholderPage = memo(function PlaceholderPage({ title, icon }) {
   const icons = {
     wallet: (
       <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
@@ -1206,9 +1208,9 @@ function PlaceholderPage({ title, icon }) {
       <span className="placeholder-page__label">Coming soon</span>
     </div>
   );
-}
+});
 
-function ProfileModal({ onClose, onProfile, onIdentity }) {
+const ProfileModal = memo(function ProfileModal({ onClose, onProfile, onIdentity }) {
   return (
     <div className="profile-modal-backdrop" onClick={onClose}>
       <div className="profile-modal" onClick={(event) => event.stopPropagation()}>
@@ -1236,7 +1238,7 @@ function ProfileModal({ onClose, onProfile, onIdentity }) {
       </div>
     </div>
   );
-}
+});
 
 function ProfileContent({ profile }) {
   const { firstName, lastName, phoneVerified, selfiePhoto, docPhoto } = profile ?? {};
@@ -1813,23 +1815,39 @@ export default function App() {
   }, [filter]);
 
   const handleTap = useCallback((item, type) => setDetail({ item, type }), []);
+  const handleNavigate = useCallback((p) => setActivePage(p), []);
+  const handleNavigateHome = useCallback(() => setActivePage('home'), []);
+  const handleProfileOpen = useCallback(() => setShowProfile(true), []);
+  const handleProfileClose = useCallback(() => setShowProfile(false), []);
+  const handleExchangeOpen = useCallback(() => setShowAdd(true), []);
+  const handleExchangeClose = useCallback(() => setShowAdd(false), []);
+  const handleDetailClose = useCallback(() => setDetail(null), []);
+  const handleThemeToggle = useCallback(() => setThemeIdx(i => (i + 1) % THEMES.length), []);
+  const handleLayoutToggle = useCallback(() => setLayoutMode(m => m === 'tile' ? 'list' : 'tile'), []);
+  const handleAcceptTerms = useCallback(() => {
+    localStorage.setItem(TERMS_KEY, 'true');
+    setTermsAccepted(true);
+  }, []);
+  const handleProfileNav = useCallback(() => {
+    setShowProfile(false);
+    setActivePage('profile');
+  }, []);
+  const handleIdentityNav = useCallback(() => {
+    setShowProfile(false);
+    setActivePage('identity');
+  }, []);
+  const handleIdentitySave = useCallback((data) => setUserProfile(data), []);
 
   if (loading) return <SplashLoader />;
 
   if (!termsAccepted) {
-    return (
-      <TermsModal onAccept={() => {
-        localStorage.setItem(TERMS_KEY, 'true');
-        setTermsAccepted(true);
-      }} />
-    );
+    return <TermsModal onAccept={handleAcceptTerms} />;
   }
 
-  const SUB_PAGES = { identity: 'Identity Verification', profile: 'Profile' };
   const isSubPage = activePage in SUB_PAGES;
 
   const header = isSubPage
-    ? <PageHeader title={SUB_PAGES[activePage]} onBack={() => setActivePage('home')} />
+    ? <PageHeader title={SUB_PAGES[activePage]} onBack={handleNavigateHome} />
     : (
       <header className="p2p-header">
         <div className="p2p-header__text-group">
@@ -1847,8 +1865,8 @@ export default function App() {
             </div>
             <span className="p2p-summary__label">this period</span>
           </div>
-          <ThemeToggle themeIdx={themeIdx} onToggle={() => setThemeIdx(i => (i + 1) % THEMES.length)} />
-          <button type="button" className="p2p-header__avatar" aria-label="Profile" onClick={() => setShowProfile(true)}>
+          <ThemeToggle themeIdx={themeIdx} onToggle={handleThemeToggle} />
+          <button type="button" className="p2p-header__avatar" aria-label="Profile" onClick={handleProfileOpen}>
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="rgba(255,255,255,0.95)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="9" cy="6.5" r="3" />
               <path d="M2.5 15.5c0-3.3 2.9-5.3 6.5-5.3s6.5 2 6.5 5.3" />
@@ -1862,9 +1880,9 @@ export default function App() {
     <AppShell
       header={header}
       activePage={activePage}
-      onNavigate={setActivePage}
-      onProfile={() => setShowProfile(true)}
-      onExchange={() => setShowAdd(true)}
+      onNavigate={handleNavigate}
+      onProfile={handleProfileOpen}
+      onExchange={handleExchangeOpen}
     >
       {activePage === 'home' && (
         <>
@@ -1872,7 +1890,7 @@ export default function App() {
             active={filter}
             onChange={setFilter}
             layout={layoutMode}
-            onToggleLayout={() => setLayoutMode(m => m === 'tile' ? 'list' : 'tile')}
+            onToggleLayout={handleLayoutToggle}
           />
           <main className="p2p-lists" aria-label="Transactions">
             {layoutMode === 'tile' ? (
@@ -1911,8 +1929,8 @@ export default function App() {
 
       {activePage === 'identity' && (
         <IdentityContent
-          onDone={() => setActivePage('home')}
-          onSave={(data) => setUserProfile(data)}
+          onDone={handleNavigateHome}
+          onSave={handleIdentitySave}
         />
       )}
 
@@ -1923,13 +1941,13 @@ export default function App() {
       {activePage === 'wallet' && <PlaceholderPage title="Wallet" icon="wallet" />}
       {activePage === 'markets' && <PlaceholderPage title="Markets" icon="markets" />}
 
-      {detail && <DetailSheet item={detail.item} type={detail.type} onClose={() => setDetail(null)} />}
-      {showAdd && <ExchangeModal onClose={() => setShowAdd(false)} />}
+      {detail && <DetailSheet item={detail.item} type={detail.type} onClose={handleDetailClose} />}
+      {showAdd && <ExchangeModal onClose={handleExchangeClose} />}
       {showProfile && (
         <ProfileModal
-          onClose={() => setShowProfile(false)}
-          onProfile={() => { setShowProfile(false); setActivePage('profile'); }}
-          onIdentity={() => { setShowProfile(false); setActivePage('identity'); }}
+          onClose={handleProfileClose}
+          onProfile={handleProfileNav}
+          onIdentity={handleIdentityNav}
         />
       )}
     </AppShell>
