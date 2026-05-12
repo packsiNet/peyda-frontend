@@ -4,7 +4,13 @@
       "Bash(npm run *)",
       "Bash(curl -s http://localhost:5173)",
       "Bash(npx vite *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "WebFetch(domain:api.anthropic.com)",
+      "Read(//tmp/**)",
+      "Bash(cp \"/home/shahram/.claude/projects/-run-media-shahram-New-Volume-Projects-payda-applications-frontend/4a621df8-8f58-4b2b-89c6-cc3068620297/tool-results/webfetch-1778607316099-pqut9a.bin\" design.gz)",
+      "Bash(gunzip -k -f design.gz)",
+      "Bash(mkdir -p /tmp/design_kit)",
+      "Bash(tar -xf /tmp/design -C /tmp/design_kit)"
     ]
   }
 }

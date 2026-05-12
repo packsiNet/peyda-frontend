@@ -22,7 +22,7 @@ function applyTgSafeArea() {
 
 // Theme → Telegram header/bg color map
 const TG_THEME_COLORS = {
-  dark:  { header: '#060E1C', bg: '#060E1C' },
+  dark:  { header: '#050A14', bg: '#050A14' },
   light: { header: '#F0F8FF', bg: '#F0F8FF' },
   default: { header: '#fbe5c8', bg: '#fbe5c8' },
 };
