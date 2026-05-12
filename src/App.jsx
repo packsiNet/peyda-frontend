@@ -1482,7 +1482,7 @@ function DatePickerField({ id, value, onChange }) {
   return (
     <div className="datepicker">
       <button type="button" id={id} className={`datepicker__trigger identity-field__input${!value ? ' datepicker__trigger--empty' : ''}`} onClick={openPicker}>
-        <span>{value ? displayValue : 'Select date of birth'}</span>
+        <span>{value ? displayValue : 'Select date'}</span>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <rect x="2" y="3" width="12" height="11" rx="2" />
           <path d="M5 1v2M11 1v2M2 7h12" />
