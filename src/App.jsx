@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, memo, useCallback, useMemo } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, memo, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 
 // ── Telegram Mini App safe-area hook ──────────────────────────────────────
@@ -845,15 +845,39 @@ function ExchangeModal({ onClose }) {
 }
 
 // ── Help Balloon (reusable) ───────────────────────────────────
+const SCREEN_GAP = 12;
+
+function calcPos(btnRect, balloonW, balloonH) {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  let left = btnRect.left - 8;
+  if (left + balloonW > vw - SCREEN_GAP) left = vw - balloonW - SCREEN_GAP;
+  if (left < SCREEN_GAP) left = SCREEN_GAP;
+
+  const spaceBelow = vh - btnRect.bottom - 10;
+  const top = spaceBelow >= balloonH
+    ? btnRect.bottom + 10
+    : btnRect.top - balloonH - 10;
+
+  const btnCenterX = btnRect.left + btnRect.width / 2;
+  const arrowLeft = Math.max(12, Math.min(btnCenterX - left - 6, balloonW - 24));
+
+  return { top, left, arrowLeft };
+}
+
 function HelpBalloon({ anchorRef, onClose, title, children }) {
   const ref = useRef(null);
-  const [pos, setPos] = useState(null);
+  // Render off-screen first so useLayoutEffect can measure real dimensions
+  const [pos, setPos] = useState({ top: -9999, left: -9999, arrowLeft: 16, ready: false });
 
-  useEffect(() => {
-    if (anchorRef?.current) {
-      const r = anchorRef.current.getBoundingClientRect();
-      setPos({ top: r.bottom + 10, left: r.left - 8 });
-    }
+  // useLayoutEffect: runs sync after DOM paint — no visible flash
+  useLayoutEffect(() => {
+    if (!ref.current || !anchorRef?.current) return;
+    const btn = anchorRef.current.getBoundingClientRect();
+    const w = ref.current.offsetWidth;
+    const h = ref.current.offsetHeight;
+    setPos({ ...calcPos(btn, w, h), ready: true });
   }, [anchorRef]);
 
   useEffect(() => {
@@ -867,17 +891,20 @@ function HelpBalloon({ anchorRef, onClose, title, children }) {
     return () => document.removeEventListener('pointerdown', onPointerDown);
   }, [onClose, anchorRef]);
 
-  if (!pos) return null;
-
   return createPortal(
     <div
       className="help-balloon"
       ref={ref}
-      style={{ top: pos.top, left: pos.left }}
+      style={{
+        top: pos.top,
+        left: pos.left,
+        opacity: pos.ready ? 1 : 0,
+        pointerEvents: pos.ready ? 'auto' : 'none',
+      }}
       role="dialog"
       aria-label="Help"
     >
-      <div className="help-balloon__arrow" aria-hidden="true" />
+      <div className="help-balloon__arrow" style={{ left: pos.arrowLeft }} aria-hidden="true" />
       <div className="help-balloon__head">
         <span className="help-balloon__title">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
