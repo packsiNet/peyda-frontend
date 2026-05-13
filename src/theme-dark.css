@@ -60,9 +60,15 @@ html[data-theme="dark"] body::before {
 }
 
 html[data-theme="dark"] body::after {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   background:
-    radial-gradient(ellipse at 78% 78%, rgba(168, 85, 247, 0.28) 0%, transparent 60%),
-    radial-gradient(ellipse at 18% 60%, rgba(236, 72, 153, 0.18) 0%, transparent 55%);
+    radial-gradient(ellipse 55% 45% at 95% 88%, rgba(168, 85, 247, 0.28) 0%, transparent 100%),
+    radial-gradient(ellipse 45% 38% at 52% 78%, rgba(236, 72, 153, 0.18) 0%, transparent 100%);
 }
 
 /* Five lights blobs — Packsi signature ambient pattern */
