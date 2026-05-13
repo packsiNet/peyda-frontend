@@ -210,46 +210,10 @@ const TxTile = memo(function TxTile({ item, type, onTap }) {
   );
 });
 
-const FILTERS = [
-  { id: 'all', label: 'All', cls: '' },
-  { id: 'received', label: 'Received', cls: 'is-r' },
-  { id: 'sent', label: 'Sent', cls: 'is-s' },
+const SORTS = [
+  { id: 'highest', label: 'Highest' },
+  { id: 'lowest', label: 'Lowest' },
 ];
-
-const FilterIcon = memo(function FilterIcon({ id, active }) {
-  const stroke = active
-    ? id === 'received'
-      ? 'var(--leaf-deep)'
-      : id === 'sent'
-      ? 'var(--amber-deep)'
-      : 'var(--ink)'
-    : 'var(--ink-mute)';
-
-  if (id === 'all') {
-    return (
-      <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke={stroke} strokeWidth="1.4">
-        <rect x="1.5" y="1.5" width="4" height="4" rx="1" />
-        <rect x="7.5" y="1.5" width="4" height="4" rx="1" />
-        <rect x="1.5" y="7.5" width="4" height="4" rx="1" />
-        <rect x="7.5" y="7.5" width="4" height="4" rx="1" />
-      </svg>
-    );
-  }
-
-  if (id === 'received') {
-    return (
-      <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke={stroke} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M6.5 2v8M3.5 7l3 3 3-3" />
-      </svg>
-    );
-  }
-
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke={stroke} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M6.5 11V3M3.5 6l3-3 3 3" />
-    </svg>
-  );
-});
 
 const LayoutToggleBtn = memo(function LayoutToggleBtn({ layout, onToggle }) {
   const isTile = layout === 'tile';
@@ -278,23 +242,22 @@ const LayoutToggleBtn = memo(function LayoutToggleBtn({ layout, onToggle }) {
   );
 });
 
-const FilterBar = memo(function FilterBar({ active, onChange, layout, onToggleLayout }) {
+const SortBar = memo(function SortBar({ sort, onSort, layout, onToggleLayout }) {
   return (
-    <div role="toolbar" aria-label="Filter transactions" className="p2p-filterbar">
+    <div role="toolbar" aria-label="Sort transactions" className="p2p-filterbar">
       <LayoutToggleBtn layout={layout} onToggle={onToggleLayout} />
-      <span className="p2p-filterbar__label">Filter</span>
-      {FILTERS.map((filter) => {
-        const isActive = active === filter.id;
+      <span className="p2p-filterbar__label">Sort</span>
+      {SORTS.map((s) => {
+        const isActive = sort === s.id;
         return (
           <button
-            key={filter.id}
+            key={s.id}
             type="button"
-            onClick={() => onChange(filter.id)}
+            onClick={() => onSort(isActive ? null : s.id)}
             aria-pressed={isActive}
-            className={`p2p-filter-btn ${isActive ? `p2p-filter-btn--active ${filter.cls}` : ''}`}
+            className={`p2p-filter-btn ${isActive ? 'p2p-filter-btn--active' : ''}`}
           >
-            <FilterIcon id={filter.id} active={isActive} />
-            <span className="p2p-filter-btn__label">{filter.label}</span>
+            <span className="p2p-filter-btn__label">{s.label}</span>
           </button>
         );
       })}
@@ -342,6 +305,36 @@ const TxListItem = memo(function TxListItem({ item, type, onTap }) {
         </div>
       </div>
     </article>
+  );
+});
+
+const TransactionListPage = memo(function TransactionListPage({ data, type, sort, layout, onSort, onLayoutToggle, onTap }) {
+  const sorted = useMemo(() => {
+    if (!sort) return data;
+    return [...data].sort((a, b) => sort === 'highest' ? b.amount - a.amount : a.amount - b.amount);
+  }, [data, sort]);
+
+  return (
+    <>
+      <SortBar sort={sort} onSort={onSort} layout={layout} onToggleLayout={onLayoutToggle} />
+      <main className="p2p-lists" aria-label="Transactions">
+        {layout === 'tile' ? (
+          <div className="p2p-tiles-wrap p2p-scroll">
+            <div className="p2p-tiles" role="list">
+              {sorted.map((item) => (
+                <TxTile key={item.id} item={item} type={type} onTap={onTap} />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="p2p-list-wrap p2p-scroll" role="list">
+            {sorted.map((item) => (
+              <TxListItem key={item.id} item={item} type={type} onTap={onTap} />
+            ))}
+          </div>
+        )}
+      </main>
+    </>
   );
 });
 
@@ -1124,13 +1117,12 @@ const AppTabBar = memo(function AppTabBar({ activePage, onNavigate, onProfile, o
         <span className="p2p-tab__bar" aria-hidden="true" />
       </button>
 
-      <button type="button" className={`p2p-tab ${activePage === 'wallet' ? 'is-active' : ''}`} onClick={() => onNavigate('wallet')} aria-label="Wallet">
+      <button type="button" className={`p2p-tab ${activePage === 'sent' ? 'is-active' : ''}`} onClick={() => onNavigate('sent')} aria-label="Sent">
         <svg className="p2p-tab__icon" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="2" y="8" width="20" height="13" rx="2.5" />
-          <path d="M6 8V6a2 2 0 012-2h8a2 2 0 012 2v2" />
-          <circle cx="17" cy="15" r="1.5" fill="currentColor" stroke="none" />
+          <line x1="12" y1="19" x2="12" y2="5" />
+          <polyline points="5,12 12,5 19,12" />
         </svg>
-        <span className="p2p-tab__label">Wallet</span>
+        <span className="p2p-tab__label">Sent</span>
         <span className="p2p-tab__bar" aria-hidden="true" />
       </button>
 
@@ -1144,12 +1136,12 @@ const AppTabBar = memo(function AppTabBar({ activePage, onNavigate, onProfile, o
         <span className="p2p-tab__label p2p-tab__label--exchange">Exchange</span>
       </div>
 
-      <button type="button" className={`p2p-tab ${activePage === 'markets' ? 'is-active' : ''}`} onClick={() => onNavigate('markets')} aria-label="Markets">
+      <button type="button" className={`p2p-tab ${activePage === 'received' ? 'is-active' : ''}`} onClick={() => onNavigate('received')} aria-label="Received">
         <svg className="p2p-tab__icon" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-          <path d="M9 22V12h6v10" />
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <polyline points="19,12 12,19 5,12" />
         </svg>
-        <span className="p2p-tab__label">Markets</span>
+        <span className="p2p-tab__label">Received</span>
         <span className="p2p-tab__bar" aria-hidden="true" />
       </button>
 
@@ -1188,17 +1180,10 @@ function AppShell({ header, children, activePage, onNavigate, onProfile, onExcha
 
 const PlaceholderPage = memo(function PlaceholderPage({ title, icon }) {
   const icons = {
-    wallet: (
+    home: (
       <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="2" y="8" width="20" height="13" rx="2.5" />
-        <path d="M6 8V6a2 2 0 012-2h8a2 2 0 012 2v2" />
-        <circle cx="17" cy="15" r="1.5" fill="currentColor" stroke="none" />
-      </svg>
-    ),
-    markets: (
-      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-        <path d="M9 22V12h6v10" />
+        <polyline points="3,17 8,10 13,14 18,6 21,9" />
+        <line x1="3" y1="17" x2="22" y2="17" />
       </svg>
     ),
   };
@@ -1676,63 +1661,228 @@ function IdentityContent({ onDone, onSave }) {
   );
 }
 
+const LEVEL_LABELS = ['', 'Starter', 'Basic', 'Advanced', 'Expert', 'Elite'];
+
+function fmtDate(dateStr) {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+const MatchCard = memo(function MatchCard({ item, type, ratio, onTap }) {
+  const isReceived = type === 'received';
+  const sign = isReceived ? '+' : '−';
+  const amountColor = isReceived ? 'var(--leaf-deep)' : 'var(--amber-deep)';
+
+  const matchInfo = ratio <= 0.05 ? { label: 'Exact', cls: 'match-badge--exact' }
+    : ratio <= 0.20              ? { label: 'Great', cls: 'match-badge--great' }
+    : ratio <= 0.35              ? { label: 'Good',  cls: 'match-badge--good'  }
+    :                              { label: 'Fair',  cls: 'match-badge--fair'  };
+
+  const initials = item.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+
+  return (
+    <article
+      role="button"
+      tabIndex={0}
+      className={`match-card ${isReceived ? 'match-card--received' : 'match-card--sent'}`}
+      aria-label={`${matchInfo.label} match · ${item.name} · €${item.amount}`}
+      onClick={() => onTap(item, type)}
+      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onTap(item, type)}
+    >
+      <div className="match-card__top">
+        <div className="match-card__avatar" aria-hidden="true">{initials}</div>
+
+        <div className="match-card__info">
+          <div className="match-card__name-row">
+            <span className="match-card__name">{item.name}</span>
+            {item.trusted && (
+              <span className="match-card__trust" aria-label="Trusted">
+                <svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">
+                  <path d="M5 0.5L6.18 3.32L9.24 3.55L7.04 5.44L7.73 8.45L5 6.8L2.27 8.45L2.96 5.44L0.76 3.55L3.82 3.32L5 0.5Z"/>
+                </svg>
+                Trust
+              </span>
+            )}
+          </div>
+          <div className="match-card__meta">
+            <span className="match-card__level">Lv {item.level} · {LEVEL_LABELS[item.level]}</span>
+            <span className="match-card__sep" aria-hidden="true" />
+            <span className="match-card__method">{item.method}</span>
+            <span className="match-card__sep" aria-hidden="true" />
+            <span className="match-card__date">{fmtDate(item.date)}</span>
+          </div>
+        </div>
+
+        <div className="match-card__right">
+          <span className="match-card__amount" style={{ color: amountColor }}>
+            {sign}€{item.amount.toLocaleString()}
+          </span>
+        </div>
+      </div>
+
+      <div className="match-card__footer">
+        <div className="match-card__rate-wrap">
+          <span className="match-card__rate-label">Rate</span>
+          <span className="match-card__rate">{item.rate.toLocaleString()} T</span>
+        </div>
+        <span className={`match-badge ${matchInfo.cls}`}>{matchInfo.label}</span>
+      </div>
+    </article>
+  );
+});
+
+const HomeSearch = memo(function HomeSearch({ onTap }) {
+  const [direction, setDirection] = useState('send');
+  const [amount, setAmount] = useState('');
+
+  const amountNum = parseFloat(amount) || 0;
+  const sourceData = direction === 'send' ? RECEIVED : SENT;
+  const matchType  = direction === 'send' ? 'received' : 'sent';
+
+  const matches = useMemo(() => {
+    if (!amountNum) return [];
+    return sourceData
+      .map(item => ({ item, ratio: Math.abs(item.amount - amountNum) / amountNum }))
+      .filter(x => x.ratio <= 0.5)
+      .sort((a, b) => a.ratio - b.ratio)
+      .slice(0, 10);
+  }, [amountNum, direction, sourceData]);
+
+  const getMatch = (ratio) => {
+    if (ratio <= 0.05) return { label: 'Exact', cls: 'match-badge--exact' };
+    if (ratio <= 0.20) return { label: 'Great', cls: 'match-badge--great' };
+    if (ratio <= 0.35) return { label: 'Good',  cls: 'match-badge--good'  };
+    return                    { label: 'Fair',  cls: 'match-badge--fair'  };
+  };
+
+  return (
+    <div className="home-search">
+      <div className="home-search__card">
+        <span className="home-search__glow" aria-hidden="true" />
+        <p className="home-search__eyebrow">Find a match</p>
+
+        <div className="seg seg--full home-search__seg">
+          <button
+            type="button"
+            className={`seg__btn seg__btn--icon ${direction === 'send' ? 'is-active is-send' : ''}`}
+            onClick={() => setDirection('send')}
+          >
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6.5 11V3M3.5 6l3-3 3 3" />
+            </svg>
+            Send
+          </button>
+          <button
+            type="button"
+            className={`seg__btn seg__btn--icon ${direction === 'receive' ? 'is-active is-receive' : ''}`}
+            onClick={() => setDirection('receive')}
+          >
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6.5 2v8M3.5 7l3 3 3-3" />
+            </svg>
+            Receive
+          </button>
+        </div>
+
+        <div className="home-search__amount-row">
+          <span className="home-search__currency">€</span>
+          <input
+            type="number"
+            inputMode="decimal"
+            className="home-search__amount-input"
+            placeholder="0"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            min="0"
+            aria-label="Amount"
+          />
+        </div>
+
+        <p className={`home-search__hint${amountNum > 0 ? ' home-search__hint--active' : ''}`}>
+          {amountNum > 0
+            ? `Searching ${direction === 'send' ? 'receivers' : 'senders'} near €${amountNum.toLocaleString()}`
+            : 'Enter an amount to find matching users'}
+        </p>
+      </div>
+
+      {amountNum > 0 && (
+        <div className="match-results">
+          <div className="match-results__header">
+            <span className="match-results__title">
+              {matches.length > 0
+                ? `${matches.length} match${matches.length !== 1 ? 'es' : ''} found`
+                : 'No matches found'}
+            </span>
+            <span className="match-results__sub">±50% · €{amountNum.toLocaleString()}</span>
+          </div>
+          {matches.map(({ item, ratio }) => (
+            <MatchCard key={item.id} item={item} type={matchType} ratio={ratio} onTap={onTap} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+});
+
 const RECEIVED = [
-  { id: 'r1', name: 'Kian M.', method: 'Revolut', amount: 100 },
-  { id: 'r2', name: 'Sara R.', method: 'Zelle', amount: 50 },
-  { id: 'r3', name: 'Mina H.', method: 'SEPA', amount: 200 },
-  { id: 'r4', name: 'Parisa K.', method: 'Revolut', amount: 80 },
-  { id: 'r5', name: 'Ali F.', method: 'Zelle', amount: 150 },
-  { id: 'r6', name: 'Dina S.', method: 'SEPA', amount: 60 },
-  { id: 'r7', name: 'Navid R.', method: 'Revolut', amount: 120 },
-  { id: 'r8', name: 'Shirin A.', method: 'Zelle', amount: 95 },
-  { id: 'r9', name: 'Babak M.', method: 'SEPA', amount: 175 },
-  { id: 'r10', name: 'Yasmin H.', method: 'Revolut', amount: 40 },
-  { id: 'r11', name: 'Kamran T.', method: 'Zelle', amount: 220 },
-  { id: 'r12', name: 'Noushin P.', method: 'SEPA', amount: 65 },
-  { id: 'r13', name: 'Amir E.', method: 'Revolut', amount: 310 },
-  { id: 'r14', name: 'Golnaz F.', method: 'Zelle', amount: 88 },
-  { id: 'r15', name: 'Cyrus B.', method: 'SEPA', amount: 130 },
-  { id: 'r16', name: 'Saman K.', method: 'Revolut', amount: 55 },
-  { id: 'r17', name: 'Ladan V.', method: 'Zelle', amount: 190 },
-  { id: 'r18', name: 'Hooman D.', method: 'SEPA', amount: 70 },
-  { id: 'r19', name: 'Farzad N.', method: 'Revolut', amount: 250 },
-  { id: 'r20', name: 'Roxana J.', method: 'Zelle', amount: 45 },
-  { id: 'r21', name: 'Dariush M.', method: 'SEPA', amount: 160 },
+  { id: 'r1',  name: 'Kian M.',     method: 'Revolut', amount: 100, level: 3, trusted: false, rate: 160000, date: '2025-05-08' },
+  { id: 'r2',  name: 'Sara R.',     method: 'Zelle',   amount: 50,  level: 1, trusted: false, rate: 155000, date: '2025-05-11' },
+  { id: 'r3',  name: 'Mina H.',     method: 'SEPA',    amount: 200, level: 4, trusted: true,  rate: 163000, date: '2025-04-22' },
+  { id: 'r4',  name: 'Parisa K.',   method: 'Revolut', amount: 80,  level: 2, trusted: false, rate: 157500, date: '2025-05-09' },
+  { id: 'r5',  name: 'Ali F.',      method: 'Zelle',   amount: 150, level: 3, trusted: true,  rate: 161000, date: '2025-05-06' },
+  { id: 'r6',  name: 'Dina S.',     method: 'SEPA',    amount: 60,  level: 1, trusted: false, rate: 155000, date: '2025-05-12' },
+  { id: 'r7',  name: 'Navid R.',    method: 'Revolut', amount: 120, level: 3, trusted: false, rate: 159500, date: '2025-05-03' },
+  { id: 'r8',  name: 'Shirin A.',   method: 'Zelle',   amount: 95,  level: 2, trusted: false, rate: 158000, date: '2025-05-10' },
+  { id: 'r9',  name: 'Babak M.',    method: 'SEPA',    amount: 175, level: 4, trusted: true,  rate: 162500, date: '2025-04-30' },
+  { id: 'r10', name: 'Yasmin H.',   method: 'Revolut', amount: 40,  level: 1, trusted: false, rate: 154000, date: '2025-05-12' },
+  { id: 'r11', name: 'Kamran T.',   method: 'Zelle',   amount: 220, level: 4, trusted: true,  rate: 163500, date: '2025-04-18' },
+  { id: 'r12', name: 'Noushin P.',  method: 'SEPA',    amount: 65,  level: 2, trusted: false, rate: 156000, date: '2025-05-07' },
+  { id: 'r13', name: 'Amir E.',     method: 'Revolut', amount: 310, level: 5, trusted: true,  rate: 165500, date: '2025-03-28' },
+  { id: 'r14', name: 'Golnaz F.',   method: 'Zelle',   amount: 88,  level: 2, trusted: false, rate: 157000, date: '2025-05-09' },
+  { id: 'r15', name: 'Cyrus B.',    method: 'SEPA',    amount: 130, level: 3, trusted: false, rate: 160000, date: '2025-05-02' },
+  { id: 'r16', name: 'Saman K.',    method: 'Revolut', amount: 55,  level: 1, trusted: false, rate: 155500, date: '2025-05-11' },
+  { id: 'r17', name: 'Ladan V.',    method: 'Zelle',   amount: 190, level: 3, trusted: true,  rate: 162000, date: '2025-04-25' },
+  { id: 'r18', name: 'Hooman D.',   method: 'SEPA',    amount: 70,  level: 2, trusted: false, rate: 156500, date: '2025-05-08' },
+  { id: 'r19', name: 'Farzad N.',   method: 'Revolut', amount: 250, level: 5, trusted: true,  rate: 164000, date: '2025-04-10' },
+  { id: 'r20', name: 'Roxana J.',   method: 'Zelle',   amount: 45,  level: 1, trusted: false, rate: 154500, date: '2025-05-12' },
+  { id: 'r21', name: 'Dariush M.',  method: 'SEPA',    amount: 160, level: 3, trusted: false, rate: 161000, date: '2025-05-04' },
 ];
 
 const SENT = [
-  { id: 's1', name: 'Shahram K.', method: 'Revolut', amount: 200 },
-  { id: 's2', name: 'Neda A.', method: 'Zelle', amount: 75 },
-  { id: 's3', name: 'Reza P.', method: 'SEPA', amount: 120 },
-  { id: 's4', name: 'Leila M.', method: 'Revolut', amount: 90 },
-  { id: 's5', name: 'Omid T.', method: 'Zelle', amount: 45 },
-  { id: 's6', name: 'Farid N.', method: 'SEPA', amount: 300 },
-  { id: 's7', name: 'Tara S.', method: 'Revolut', amount: 135 },
-  { id: 's8', name: 'Pouya L.', method: 'Zelle', amount: 60 },
-  { id: 's9', name: 'Mahsa G.', method: 'SEPA', amount: 185 },
-  { id: 's10', name: 'Siavash R.', method: 'Revolut', amount: 50 },
-  { id: 's11', name: 'Nasim K.', method: 'Zelle', amount: 275 },
-  { id: 's12', name: 'Behzad O.', method: 'SEPA', amount: 95 },
-  { id: 's13', name: 'Marjan T.', method: 'Revolut', amount: 410 },
-  { id: 's14', name: 'Arash C.', method: 'Zelle', amount: 72 },
-  { id: 's15', name: 'Firouzeh B.', method: 'SEPA', amount: 115 },
-  { id: 's16', name: 'Kaveh M.', method: 'Revolut', amount: 340 },
-  { id: 's17', name: 'Zara P.', method: 'Zelle', amount: 83 },
-  { id: 's18', name: 'Hamed V.', method: 'SEPA', amount: 155 },
-  { id: 's19', name: 'Elnaz D.', method: 'Revolut', amount: 60 },
-  { id: 's20', name: 'Morteza F.', method: 'Zelle', amount: 230 },
-  { id: 's21', name: 'Shadi N.', method: 'SEPA', amount: 78 },
+  { id: 's1',  name: 'Shahram K.',  method: 'Revolut', amount: 200, level: 4, trusted: true,  rate: 162000, date: '2025-05-10' },
+  { id: 's2',  name: 'Neda A.',     method: 'Zelle',   amount: 75,  level: 2, trusted: false, rate: 157000, date: '2025-05-11' },
+  { id: 's3',  name: 'Reza P.',     method: 'SEPA',    amount: 120, level: 3, trusted: true,  rate: 160000, date: '2025-04-22' },
+  { id: 's4',  name: 'Leila M.',    method: 'Revolut', amount: 90,  level: 2, trusted: false, rate: 158500, date: '2025-05-08' },
+  { id: 's5',  name: 'Omid T.',     method: 'Zelle',   amount: 45,  level: 1, trusted: false, rate: 155000, date: '2025-05-12' },
+  { id: 's6',  name: 'Farid N.',    method: 'SEPA',    amount: 300, level: 5, trusted: true,  rate: 165000, date: '2025-04-01' },
+  { id: 's7',  name: 'Tara S.',     method: 'Revolut', amount: 135, level: 3, trusted: false, rate: 160000, date: '2025-05-05' },
+  { id: 's8',  name: 'Pouya L.',    method: 'Zelle',   amount: 60,  level: 1, trusted: false, rate: 156000, date: '2025-05-09' },
+  { id: 's9',  name: 'Mahsa G.',    method: 'SEPA',    amount: 185, level: 3, trusted: true,  rate: 162000, date: '2025-04-28' },
+  { id: 's10', name: 'Siavash R.',  method: 'Revolut', amount: 50,  level: 1, trusted: false, rate: 155000, date: '2025-05-11' },
+  { id: 's11', name: 'Nasim K.',    method: 'Zelle',   amount: 275, level: 4, trusted: true,  rate: 164000, date: '2025-04-15' },
+  { id: 's12', name: 'Behzad O.',   method: 'SEPA',    amount: 95,  level: 2, trusted: false, rate: 158000, date: '2025-05-06' },
+  { id: 's13', name: 'Marjan T.',   method: 'Revolut', amount: 410, level: 5, trusted: true,  rate: 167000, date: '2025-03-20' },
+  { id: 's14', name: 'Arash C.',    method: 'Zelle',   amount: 72,  level: 2, trusted: false, rate: 157000, date: '2025-05-10' },
+  { id: 's15', name: 'Firouzeh B.', method: 'SEPA',    amount: 115, level: 3, trusted: false, rate: 159000, date: '2025-05-04' },
+  { id: 's16', name: 'Kaveh M.',    method: 'Revolut', amount: 340, level: 5, trusted: true,  rate: 165500, date: '2025-03-28' },
+  { id: 's17', name: 'Zara P.',     method: 'Zelle',   amount: 83,  level: 2, trusted: false, rate: 157500, date: '2025-05-07' },
+  { id: 's18', name: 'Hamed V.',    method: 'SEPA',    amount: 155, level: 3, trusted: true,  rate: 161000, date: '2025-04-26' },
+  { id: 's19', name: 'Elnaz D.',    method: 'Revolut', amount: 60,  level: 1, trusted: false, rate: 156000, date: '2025-05-09' },
+  { id: 's20', name: 'Morteza F.',  method: 'Zelle',   amount: 230, level: 4, trusted: true,  rate: 163000, date: '2025-04-18' },
+  { id: 's21', name: 'Shadi N.',    method: 'SEPA',    amount: 78,  level: 1, trusted: false, rate: 156500, date: '2025-05-08' },
 ];
 
 export default function App() {
   const [activePage, setActivePage] = useState('home');
-  const [filter, setFilter] = useState('all');
   const [detail, setDetail] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
   const [themeIdx, setThemeIdx] = useState(0);
-  const [layoutMode, setLayoutMode] = useState('list');
+  const [sentLayout, setSentLayout] = useState('list');
+  const [receivedLayout, setReceivedLayout] = useState('list');
+  const [sentSort, setSentSort] = useState(null);
+  const [receivedSort, setReceivedSort] = useState(null);
   const [tallScreen, setTallScreen] = useState(() => window.matchMedia('(min-height: 500px)').matches);
   const [loading, setLoading] = useState(true);
   const [termsAccepted, setTermsAccepted] = useState(() => localStorage.getItem(TERMS_KEY) === 'true');
@@ -1789,7 +1939,7 @@ export default function App() {
   // Telegram Back Button for sub-pages
   useEffect(() => {
     if (!tg?.BackButton) return;
-    if (activePage !== 'home') {
+    if (activePage in SUB_PAGES) {
       tg.BackButton.show();
       const onBack = () => setActivePage('home');
       tg.BackButton.onClick(onBack);
@@ -1802,18 +1952,6 @@ export default function App() {
   const totalReceived = useMemo(() => RECEIVED.reduce((sum, item) => sum + item.amount, 0), []);
   const totalSent = useMemo(() => SENT.reduce((sum, item) => sum + item.amount, 0), []);
 
-  const tiles = useMemo(() => {
-    if (filter === 'received') return RECEIVED.map((data) => ({ data, type: 'received' }));
-    if (filter === 'sent') return SENT.map((data) => ({ data, type: 'sent' }));
-    const out = [];
-    const max = Math.max(RECEIVED.length, SENT.length);
-    for (let i = 0; i < max; i++) {
-      if (RECEIVED[i]) out.push({ data: RECEIVED[i], type: 'received' });
-      if (SENT[i]) out.push({ data: SENT[i], type: 'sent' });
-    }
-    return out;
-  }, [filter]);
-
   const handleTap = useCallback((item, type) => setDetail({ item, type }), []);
   const handleNavigate = useCallback((p) => setActivePage(p), []);
   const handleNavigateHome = useCallback(() => setActivePage('home'), []);
@@ -1823,7 +1961,10 @@ export default function App() {
   const handleExchangeClose = useCallback(() => setShowAdd(false), []);
   const handleDetailClose = useCallback(() => setDetail(null), []);
   const handleThemeToggle = useCallback(() => setThemeIdx(i => (i + 1) % THEMES.length), []);
-  const handleLayoutToggle = useCallback(() => setLayoutMode(m => m === 'tile' ? 'list' : 'tile'), []);
+  const handleSentLayoutToggle = useCallback(() => setSentLayout(m => m === 'tile' ? 'list' : 'tile'), []);
+  const handleReceivedLayoutToggle = useCallback(() => setReceivedLayout(m => m === 'tile' ? 'list' : 'tile'), []);
+  const handleSentSort = useCallback((s) => setSentSort(s), []);
+  const handleReceivedSort = useCallback((s) => setReceivedSort(s), []);
   const handleAcceptTerms = useCallback(() => {
     localStorage.setItem(TERMS_KEY, 'true');
     setTermsAccepted(true);
@@ -1885,46 +2026,7 @@ export default function App() {
       onExchange={handleExchangeOpen}
     >
       {activePage === 'home' && (
-        <>
-          <FilterBar
-            active={filter}
-            onChange={setFilter}
-            layout={layoutMode}
-            onToggleLayout={handleLayoutToggle}
-          />
-          <main className="p2p-lists" aria-label="Transactions">
-            {layoutMode === 'tile' ? (
-              <div className="p2p-tiles-wrap p2p-scroll">
-                <div className="p2p-tiles" role="list">
-                  {tiles.map(({ data, type }) => (
-                    <TxTile key={`${type}-${data.id}`} item={data} type={type} onTap={handleTap} />
-                  ))}
-                </div>
-              </div>
-            ) : filter === 'all' && tallScreen ? (
-              <div className="p2p-list-wrap p2p-list-wrap--split">
-                <div className="p2p-list-col" role="list" aria-label="Received">
-                  <p className="p2p-list-col__head p2p-list-col__head--r">Received</p>
-                  {RECEIVED.map((data) => (
-                    <TxListItem key={data.id} item={data} type="received" onTap={handleTap} />
-                  ))}
-                </div>
-                <div className="p2p-list-col" role="list" aria-label="Sent">
-                  <p className="p2p-list-col__head p2p-list-col__head--s">Sent</p>
-                  {SENT.map((data) => (
-                    <TxListItem key={data.id} item={data} type="sent" onTap={handleTap} />
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="p2p-list-wrap p2p-scroll" role="list">
-                {tiles.map(({ data, type }) => (
-                  <TxListItem key={`${type}-${data.id}`} item={data} type={type} onTap={handleTap} />
-                ))}
-              </div>
-            )}
-          </main>
-        </>
+        <HomeSearch onTap={handleTap} />
       )}
 
       {activePage === 'identity' && (
@@ -1938,8 +2040,28 @@ export default function App() {
         <ProfileContent profile={userProfile} />
       )}
 
-      {activePage === 'wallet' && <PlaceholderPage title="Wallet" icon="wallet" />}
-      {activePage === 'markets' && <PlaceholderPage title="Markets" icon="markets" />}
+      {activePage === 'sent' && (
+        <TransactionListPage
+          data={SENT}
+          type="sent"
+          sort={sentSort}
+          layout={sentLayout}
+          onSort={handleSentSort}
+          onLayoutToggle={handleSentLayoutToggle}
+          onTap={handleTap}
+        />
+      )}
+      {activePage === 'received' && (
+        <TransactionListPage
+          data={RECEIVED}
+          type="received"
+          sort={receivedSort}
+          layout={receivedLayout}
+          onSort={handleReceivedSort}
+          onLayoutToggle={handleReceivedLayoutToggle}
+          onTap={handleTap}
+        />
+      )}
 
       {detail && <DetailSheet item={detail.item} type={detail.type} onClose={handleDetailClose} />}
       {showAdd && <ExchangeModal onClose={handleExchangeClose} />}
