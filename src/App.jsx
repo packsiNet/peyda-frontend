@@ -268,41 +268,55 @@ const SortBar = memo(function SortBar({ sort, onSort, layout, onToggleLayout }) 
 const TxListItem = memo(function TxListItem({ item, type, onTap }) {
   const isReceived = type === 'received';
   const sign = isReceived ? '+' : '−';
-  const meta = METHOD_META[item.method] || { country: 'Global' };
+  const amountColor = isReceived ? 'var(--leaf-deep)' : 'var(--amber-deep)';
+  const initials = item.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 
   return (
     <article
       role="button"
       tabIndex={0}
-      className={`tx-card ${isReceived ? 'tx-card--received' : 'tx-card--sent'}`}
+      className={`match-card ${isReceived ? 'match-card--received' : 'match-card--sent'}`}
       aria-label={`${type} ${sign}€${item.amount} ${item.name} via ${item.method}`}
       onClick={() => onTap(item, type)}
       onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onTap(item, type)}
     >
-      <span className="tx-card__shimmer" aria-hidden="true" />
-      <div className="tx-card__side" aria-hidden="true">
-        <svg width="13" height="13" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
-          {isReceived
-            ? <path d="M5 1.5v7M2 5.5l3 3 3-3" />
-            : <path d="M5 8.5v-7M2 4.5l3-3 3 3" />}
-        </svg>
-      </div>
-      <div className="tx-card__divider" />
-      <div className="tx-card__body">
-        <div className="tx-card__main">
-          <div className="tx-card__method">
-            <span className={`tx-card__method-dot tx-card__method-dot--${item.method.toLowerCase()}`} />
-            <span className={`tx-card__method-text tx-card__method-text--${item.method.toLowerCase()}`}>
-              {meta.country}
-            </span>
+      <div className="match-card__top">
+        <div className="match-card__avatar" aria-hidden="true">{initials}</div>
+
+        <div className="match-card__info">
+          <div className="match-card__name-row">
+            <span className="match-card__name">{item.name}</span>
+            {item.trusted && (
+              <span className="match-card__trust" aria-label="Trusted">
+                <svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">
+                  <path d="M5 0.5L6.18 3.32L9.24 3.55L7.04 5.44L7.73 8.45L5 6.8L2.27 8.45L2.96 5.44L0.76 3.55L3.82 3.32L5 0.5Z"/>
+                </svg>
+                Trust
+              </span>
+            )}
+          </div>
+          <div className="match-card__meta">
+            <span className="match-card__level">Lv {item.level} · {LEVEL_LABELS[item.level]}</span>
+            <span className="match-card__sep" aria-hidden="true" />
+            <span className="match-card__method">{item.method}</span>
+            <span className="match-card__sep" aria-hidden="true" />
+            <span className="match-card__date">{fmtDate(item.date)}</span>
           </div>
         </div>
-        <div className="tx-card__right">
-          <span className="tx-card__amount">€{item.amount.toLocaleString()}</span>
-          <svg className="tx-card__chevron" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 2l4 4-4 4" />
-          </svg>
+
+        <div className="match-card__right">
+          <span className="match-card__amount" style={{ color: amountColor }}>
+            {sign}€{item.amount.toLocaleString()}
+          </span>
         </div>
+      </div>
+
+      <div className="match-card__footer">
+        <div className="match-card__rate-wrap">
+          <span className="match-card__rate-label">Rate</span>
+          <span className="match-card__rate">{item.rate.toLocaleString()} T</span>
+        </div>
+        <span className="match-badge match-badge--done">Completed</span>
       </div>
     </article>
   );
@@ -1734,6 +1748,8 @@ const MatchCard = memo(function MatchCard({ item, type, ratio, onTap }) {
 const HomeSearch = memo(function HomeSearch({ onTap }) {
   const [direction, setDirection] = useState('send');
   const [amount, setAmount] = useState('');
+  const [openHelp, setOpenHelp] = useState(false);
+  const helpBtnRef = useRef(null);
 
   const amountNum = parseFloat(amount) || 0;
   const sourceData = direction === 'send' ? RECEIVED : SENT;
@@ -1759,7 +1775,50 @@ const HomeSearch = memo(function HomeSearch({ onTap }) {
     <div className="home-search">
       <div className="home-search__card">
         <span className="home-search__glow" aria-hidden="true" />
-        <p className="home-search__eyebrow">Find a match</p>
+
+        <div className="home-search__eyebrow-row">
+          <p className="home-search__eyebrow">Find a match</p>
+          <div className="help-anchor">
+            <button
+              ref={helpBtnRef}
+              type="button"
+              className={`help-btn help-btn--dark${openHelp ? ' help-btn--active' : ''}`}
+              aria-label="Find a match help"
+              aria-expanded={openHelp}
+              onClick={() => setOpenHelp(v => !v)}
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="6" cy="6" r="4.5" />
+                <path d="M4.5 4.8a1.5 1.5 0 0 1 3 .5c0 1-1.5 1.2-1.5 2.2M6 9h.01" />
+              </svg>
+            </button>
+            {openHelp && (
+              <HelpBalloon anchorRef={helpBtnRef} onClose={() => setOpenHelp(false)} title="Find a Match">
+                <p className="help-balloon__desc">
+                  Find users who want to exchange in the opposite direction at a matching amount.
+                </p>
+                <ul className="help-balloon__list">
+                  <li>
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 6l2.5 2.5L10 3" /></svg>
+                    Choose <strong>Send</strong> or <strong>Receive</strong> direction
+                  </li>
+                  <li>
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 6l2.5 2.5L10 3" /></svg>
+                    Enter the euro amount you want to exchange
+                  </li>
+                  <li>
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 6l2.5 2.5L10 3" /></svg>
+                    Browse matches within ±50% of your amount
+                  </li>
+                  <li>
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 6l2.5 2.5L10 3" /></svg>
+                    Tap a card to start a transaction
+                  </li>
+                </ul>
+              </HelpBalloon>
+            )}
+          </div>
+        </div>
 
         <div className="seg seg--full home-search__seg">
           <button
@@ -1804,6 +1863,18 @@ const HomeSearch = memo(function HomeSearch({ onTap }) {
             : 'Enter an amount to find matching users'}
         </p>
       </div>
+
+      {amountNum === 0 && (
+        <div className="home-search__intro">
+          <span className="home-search__intro-arrow" aria-hidden="true">↑</span>
+          <p className="home-search__intro-text">
+            Type an amount above to find users ready to exchange in the opposite direction.
+          </p>
+          <p className="home-search__intro-sub">
+            Send → finds receivers &nbsp;·&nbsp; Receive → finds senders
+          </p>
+        </div>
+      )}
 
       {amountNum > 0 && (
         <div className="match-results">
