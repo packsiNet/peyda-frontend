@@ -284,3 +284,4 @@ jobs:
 
           sudo tail -n 200 /var/log/nginx/error.log || true
           REMOTE
+          
