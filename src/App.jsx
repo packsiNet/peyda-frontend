@@ -1159,13 +1159,12 @@ const AppTabBar = memo(function AppTabBar({ activePage, onNavigate, onProfile, o
         <span className="p2p-tab__bar" aria-hidden="true" />
       </button>
 
-      <button type="button" className="p2p-tab" onClick={onProfile} aria-label="Profile">
+      <button type="button" className={`p2p-tab ${activePage === 'matches' ? 'is-active' : ''}`} onClick={() => onNavigate('matches')} aria-label="Matches">
         <svg className="p2p-tab__icon" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="2" y="8" width="20" height="13" rx="2" />
-          <path d="M16 8V6a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" />
-          <line x1="2" y1="14" x2="22" y2="14" />
+          <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+          <path d="M15 5l4 4" />
         </svg>
-        <span className="p2p-tab__label">Profile</span>
+        <span className="p2p-tab__label">Matches</span>
         <span className="p2p-tab__bar" aria-hidden="true" />
       </button>
     </nav>
@@ -1745,6 +1744,93 @@ const MatchCard = memo(function MatchCard({ item, type, ratio, onTap }) {
   );
 });
 
+function daysLeft(expiresAt) {
+  const now = new Date(); now.setHours(0,0,0,0);
+  const exp = new Date(expiresAt); exp.setHours(0,0,0,0);
+  return Math.round((exp - now) / 86400000);
+}
+
+const MatchingCard = memo(function MatchingCard({ item }) {
+  const isSend = item.direction === 'send';
+  const amountColor = isSend ? 'var(--amber-deep)' : 'var(--leaf-deep)';
+  const sign = isSend ? '−' : '+';
+  const initials = item.counterpart.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+  const left = daysLeft(item.expiresAt);
+  const expiryCls = left > 1 ? 'matching-expiry--ok' : left === 1 ? 'matching-expiry--warn' : left === 0 ? 'matching-expiry--urgent' : 'matching-expiry--expired';
+  const expiryLabel = left > 0 ? `${left}d left` : left === 0 ? 'Today' : 'Expired';
+
+  return (
+    <article className={`match-card matching-card matching-card--${item.direction}`}>
+      <div className="match-card__top">
+        <div className="match-card__avatar" aria-hidden="true">{initials}</div>
+
+        <div className="match-card__info">
+          <div className="match-card__name-row">
+            <span className="match-card__name">{item.counterpart.name}</span>
+            {item.counterpart.trusted && (
+              <span className="match-card__trust" aria-label="Trusted">
+                <svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">
+                  <path d="M5 0.5L6.18 3.32L9.24 3.55L7.04 5.44L7.73 8.45L5 6.8L2.27 8.45L2.96 5.44L0.76 3.55L3.82 3.32L5 0.5Z"/>
+                </svg>
+                Trust
+              </span>
+            )}
+            <span className={`matching-dir matching-dir--${item.direction}`}>
+              {isSend ? '↑ Send' : '↓ Receive'}
+            </span>
+          </div>
+          <div className="match-card__meta">
+            <span className="match-card__level">Lv {item.counterpart.level} · {LEVEL_LABELS[item.counterpart.level]}</span>
+            <span className="match-card__sep" aria-hidden="true" />
+            <span className="match-card__method">{item.counterpart.method}</span>
+          </div>
+        </div>
+
+        <div className="match-card__right">
+          <span className="match-card__amount" style={{ color: amountColor }}>
+            {sign}€{item.amount.toLocaleString()}
+          </span>
+          <span className="match-card__rate" style={{ marginTop: 4 }}>{item.rate.toLocaleString()} T</span>
+        </div>
+      </div>
+
+      <div className="match-card__footer matching-card__footer">
+        <div className="matching-card__dates">
+          <span className="matching-card__date-row">
+            <span className="matching-card__date-label">Requested</span>
+            <span className="matching-card__date-val">{fmtDate(item.requestDate)}</span>
+          </span>
+          <span className="matching-card__date-sep" aria-hidden="true" />
+          <span className="matching-card__date-row">
+            <span className="matching-card__date-label">Matched</span>
+            <span className="matching-card__date-val">{fmtDate(item.matchDate)}</span>
+          </span>
+        </div>
+        <span className={`matching-expiry ${expiryCls}`}>{expiryLabel}</span>
+      </div>
+    </article>
+  );
+});
+
+const MatchingPage = memo(function MatchingPage() {
+  const sends    = MY_MATCHES.filter(m => m.direction === 'send');
+  const receives = MY_MATCHES.filter(m => m.direction === 'receive');
+
+  const Section = ({ title, items, cls }) => items.length === 0 ? null : (
+    <div className="matching-section">
+      <p className={`matching-section__title ${cls}`}>{title}</p>
+      {items.map(item => <MatchingCard key={item.id} item={item} />)}
+    </div>
+  );
+
+  return (
+    <div className="page-scroll matching-page">
+      <Section title="↑ My Send Requests" cls="matching-section__title--send" items={sends} />
+      <Section title="↓ My Receive Requests" cls="matching-section__title--receive" items={receives} />
+    </div>
+  );
+});
+
 const HomeSearch = memo(function HomeSearch({ onTap }) {
   const [direction, setDirection] = useState('send');
   const [amount, setAmount] = useState('');
@@ -1943,6 +2029,29 @@ const SENT = [
   { id: 's21', name: 'Shadi N.',    method: 'SEPA',    amount: 78,  level: 1, trusted: false, rate: 156500, date: '2025-05-08' },
 ];
 
+const MY_MATCHES = [
+  {
+    id: 'mx1', direction: 'send',
+    counterpart: { name: 'Sara R.',  level: 2, trusted: false, method: 'Zelle'   },
+    amount: 150, rate: 162000, requestDate: '2026-05-10', matchDate: '2026-05-13', expiresAt: '2026-05-18',
+  },
+  {
+    id: 'mx2', direction: 'receive',
+    counterpart: { name: 'Mina H.',  level: 4, trusted: true,  method: 'SEPA'    },
+    amount: 200, rate: 163000, requestDate: '2026-05-08', matchDate: '2026-05-12', expiresAt: '2026-05-16',
+  },
+  {
+    id: 'mx3', direction: 'send',
+    counterpart: { name: 'Kian M.',  level: 3, trusted: false, method: 'Revolut' },
+    amount: 80,  rate: 160000, requestDate: '2026-05-13', matchDate: '2026-05-14', expiresAt: '2026-05-17',
+  },
+  {
+    id: 'mx4', direction: 'receive',
+    counterpart: { name: 'Ali F.',   level: 3, trusted: true,  method: 'Revolut' },
+    amount: 120, rate: 161000, requestDate: '2026-05-07', matchDate: '2026-05-11', expiresAt: '2026-05-14',
+  },
+];
+
 export default function App() {
   const [activePage, setActivePage] = useState('home');
   const [detail, setDetail] = useState(null);
@@ -2133,6 +2242,8 @@ export default function App() {
           onTap={handleTap}
         />
       )}
+
+      {activePage === 'matches' && <MatchingPage />}
 
       {detail && <DetailSheet item={detail.item} type={detail.type} onClose={handleDetailClose} />}
       {showAdd && <ExchangeModal onClose={handleExchangeClose} />}
