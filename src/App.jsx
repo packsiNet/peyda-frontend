@@ -22,12 +22,12 @@ function applyTgSafeArea() {
 
 // Theme → Telegram header/bg color map
 const TG_THEME_COLORS = {
-  dark:  { header: '#050A14', bg: '#050A14' },
-  light: { header: '#F0F8FF', bg: '#F0F8FF' },
-  default: { header: '#fbe5c8', bg: '#fbe5c8' },
+  dark:    { header: '#050A14', bg: '#050A14' },
+  light:   { header: '#EEEDE8', bg: '#EEEDE8' },
+  default: { header: '#EEEDE8', bg: '#EEEDE8' },
 };
 
-const THEMES = ['dark', 'light'];
+const THEMES = ['light', 'dark'];
 
 const SUB_PAGES = { identity: 'Identity Verification', profile: 'Profile' };
 

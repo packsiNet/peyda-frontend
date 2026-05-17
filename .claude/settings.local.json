@@ -11,7 +11,11 @@
       "Bash(gunzip -k -f design.gz)",
       "Bash(mkdir -p /tmp/design_kit)",
       "Bash(tar -xf /tmp/design -C /tmp/design_kit)",
-      "Bash(awk -F: '$2 > 1740 && $2 < 1760')"
+      "Bash(awk -F: '$2 > 1740 && $2 < 1760')",
+      "Bash(zcat /tmp/design.bin)",
+      "Bash(tar --list)",
+      "Bash(mkdir -p design-bundle)",
+      "Bash(tar xzf *)"
     ]
   }
 }

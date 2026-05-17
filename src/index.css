@@ -15,7 +15,7 @@ html, body, #root {
 body {
   min-height: 100dvh;
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: "Manrope", -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   color: var(--ink);
   background: linear-gradient(170deg, #fbe5c8 0%, #f3cfa6 30%, #ecbb96 55%, #d99a86 80%, #b07487 100%);
   background-attachment: fixed;
