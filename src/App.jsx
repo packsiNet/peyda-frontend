@@ -1,5 +1,13 @@
 import { useState, useEffect, useLayoutEffect, useRef, memo, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { tokenStore } from './api/apiClient.js';
+import { authApi } from './api/auth.js';
+import { usersApi } from './api/users.js';
+import { exchangeRatesApi } from './api/exchangeRates.js';
+import { requestsApi } from './api/requests.js';
+import { receiversApi } from './api/receivers.js';
+import { transactionsApi } from './api/transactions.js';
+import { matchesApi } from './api/matches.js';
 
 // ── Telegram Mini App safe-area hook ──────────────────────────────────────
 
@@ -400,7 +408,7 @@ const CURRENCIES = [
   { id: 'CAD', label: 'CAD Dollar', symbol: 'CA$', enabled: false },
 ];
 
-const EXCHANGE_METHODS = ['Revolut', 'Zelle', 'Paypal'];
+const EXCHANGE_METHODS = ['Revolut', 'Zelle', 'PayPal', 'SEPA', 'Wire'];
 
 const BONBAST_RATE = 160_000;
 const URGENT_RATE  = 150_000;
@@ -437,6 +445,59 @@ function ExchangeModal({ onClose }) {
   const [rcvMobile, setRcvMobile] = useState('');
   const [rcvIban, setRcvIban] = useState('');
 
+  // API state
+  const [eurRates, setEurRates] = useState(null);
+  const [previewData, setPreviewData] = useState(null);
+  const [savedReceivers, setSavedReceivers] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Load exchange rates on mount
+  useEffect(() => {
+    exchangeRatesApi.getAll().then((data) => {
+      const eur = data?.find?.((r) => r.currency === 'EUR');
+      if (eur) setEurRates(eur);
+    }).catch(() => {});
+  }, []);
+
+  // Load receivers when reaching step 2
+  useEffect(() => {
+    if (step === 2) {
+      receiversApi.getAll().then(setSavedReceivers).catch(() => {});
+    }
+  }, [step]);
+
+  // Call preview API whenever pricing inputs change
+  useEffect(() => {
+    const amtNum = parseFloat(amount);
+    if (!amtNum || !methods.length) { setPreviewData(null); return; }
+
+    const rateType = selectedRate === 'bonbast' ? 'Market'
+      : selectedRate === 'urgent'  ? 'Instant'
+      : showCustomInput            ? 'Custom'
+      : null;
+    if (!rateType) { setPreviewData(null); return; }
+
+    const customRateVal = rateType === 'Custom' ? parseFloat(proposedAmount) || null : null;
+    if (rateType === 'Custom' && !customRateVal) { setPreviewData(null); return; }
+
+    const timer = setTimeout(async () => {
+      try {
+        const result = await requestsApi.preview({
+          type: direction === 'send' ? 'Send' : 'Receive',
+          currency,
+          amount: amtNum,
+          rateType,
+          customRate: customRateVal,
+        });
+        setPreviewData(result);
+      } catch { setPreviewData(null); }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [amount, currency, direction, selectedRate, proposedAmount, showCustomInput, methods.length]);
+
+  const bonbastRate = eurRates?.marketRate  ?? BONBAST_RATE;
+  const urgentRate  = eurRates?.instantRate ?? URGENT_RATE;
+
   const toggleMethod = (m) =>
     setMethods((prev) => (prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]));
 
@@ -464,19 +525,49 @@ function ExchangeModal({ onClose }) {
   };
 
   const step1Valid = !!amount && methods.length > 0;
-  const step2Valid = showNewReceiverForm
-    ? rcvFirstName.trim() && rcvLastName.trim() && rcvNationalId.trim() && rcvMobile.trim() && rcvIban.trim()
-    : !!selectedReceiverId;
+  const step2Valid = (showNewReceiverForm
+    ? !!(rcvFirstName.trim() && rcvLastName.trim() && rcvNationalId.trim() && rcvMobile.trim() && rcvIban.trim())
+    : !!selectedReceiverId) && !submitting;
 
-  const amtNum = parseFloat(amount) || 0;
-  const rateNum = parseFloat(proposedAmount) || 0;
-  const exchangeAmt = Math.round(amtNum * rateNum);
-  const commissionAmt = Math.round(exchangeAmt * 0.01);
-  const totalAmt = exchangeAmt + commissionAmt;
+  const amtNum        = previewData?.amount           ?? (parseFloat(amount) || 0);
+  const exchangeAmt   = previewData ? (previewData.amount * (previewData.rateValue || 1)) : 0;
+  const commissionAmt = previewData?.commissionAmount ?? 0;
+  const totalAmt      = previewData?.totalAmount      ?? 0;
+  const rateDisplay   = previewData?.rateValue        ?? (parseFloat(proposedAmount) || 0);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!step2Valid) return;
-    onClose();
+    setSubmitting(true);
+    try {
+      let receiverId = selectedReceiverId;
+      if (showNewReceiverForm) {
+        const created = await receiversApi.create({
+          firstName: rcvFirstName,
+          lastName: rcvLastName,
+          nationalId: rcvNationalId,
+          mobileNumber: rcvMobile,
+          iban: rcvIban,
+        });
+        receiverId = created?.id;
+      }
+      const rateType = selectedRate === 'bonbast' ? 'Market'
+        : selectedRate === 'urgent'  ? 'Instant'
+        : 'Custom';
+      await requestsApi.create({
+        type: direction === 'send' ? 'Send' : 'Receive',
+        currency,
+        amount: parseFloat(amount),
+        rateType,
+        customRate: rateType === 'Custom' ? parseFloat(proposedAmount) || null : null,
+        paymentMethods: methods,
+        receiverId,
+      });
+      onClose();
+    } catch {
+      // error shown via notification bus
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -593,7 +684,7 @@ function ExchangeModal({ onClose }) {
                       <button
                         type="button"
                         className={`price-col__card ${selectedRate === 'bonbast' ? 'price-col__card--bonbast' : ''}`}
-                        onClick={() => handleRateSelect('bonbast', BONBAST_RATE)}
+                        onClick={() => handleRateSelect('bonbast', bonbastRate)}
                         aria-pressed={selectedRate === 'bonbast'}
                       >
                         <span className="price-col__check" aria-hidden="true">
@@ -601,7 +692,7 @@ function ExchangeModal({ onClose }) {
                             ? <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M2 5.5l2.5 2.5L9 3" /></svg>
                             : <span className="price-col__dot" />}
                         </span>
-                        <span className="price-col__value">{BONBAST_RATE.toLocaleString()}</span>
+                        <span className="price-col__value">{bonbastRate.toLocaleString()}</span>
                       </button>
                     </div>
 
@@ -610,7 +701,7 @@ function ExchangeModal({ onClose }) {
                       <button
                         type="button"
                         className={`price-col__card ${selectedRate === 'urgent' ? 'price-col__card--urgent' : ''}`}
-                        onClick={() => handleRateSelect('urgent', URGENT_RATE)}
+                        onClick={() => handleRateSelect('urgent', urgentRate)}
                         aria-pressed={selectedRate === 'urgent'}
                       >
                         <span className="price-col__check" aria-hidden="true">
@@ -618,7 +709,7 @@ function ExchangeModal({ onClose }) {
                             ? <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M2 5.5l2.5 2.5L9 3" /></svg>
                             : <span className="price-col__dot" />}
                         </span>
-                        <span className="price-col__value">{URGENT_RATE.toLocaleString()}</span>
+                        <span className="price-col__value">{urgentRate.toLocaleString()}</span>
                       </button>
                     </div>
 
@@ -697,11 +788,11 @@ function ExchangeModal({ onClose }) {
             <div className="exchange-summary">
               <div className="exchange-summary__row">
                 <span>{amtNum.toLocaleString()} {currSymbol}</span>
-                <span className="exchange-summary__eq">{'='}</span>
-                <span>{exchangeAmt.toLocaleString()} mt</span>
+                <span className="exchange-summary__eq">{'×'}</span>
+                <span>{rateDisplay.toLocaleString()}</span>
               </div>
               <div className="exchange-summary__row exchange-summary__row--commission">
-                <span>1% commission</span>
+                <span>{previewData ? `${previewData.commissionPercent}% commission` : 'Commission'}</span>
                 <span className="exchange-summary__eq">{'='}</span>
                 <span>{commissionAmt.toLocaleString()}</span>
               </div>
@@ -804,7 +895,7 @@ function ExchangeModal({ onClose }) {
                   Add New Receiver
                 </button>
                 <div className="rcv-list">
-                  {SAVED_RECEIVERS.map((r) => {
+                  {savedReceivers.map((r) => {
                     const isSelected = selectedReceiverId === r.id;
                     return (
                       <button
@@ -843,7 +934,7 @@ function ExchangeModal({ onClose }) {
                 disabled={!step2Valid}
                 onClick={handleSubmit}
               >
-                Submit Request
+                {submitting ? 'Submitting…' : 'Submit Request'}
               </button>
             </div>
           </>
@@ -1245,7 +1336,7 @@ function ProfileContent({ profile }) {
     <div className="profile-photo-item">
       <div className="profile-photo-thumb-wrap">
         {photo ? (
-          <img className="profile-photo-thumb" src={photo} alt={label} />
+          <img className="profile-photo-thumb" src={photo?.url ?? photo} alt={label} />
         ) : (
           <div className="profile-photo-placeholder">
             <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
@@ -1362,7 +1453,7 @@ function CameraCapture({ label, facingMode, icon, onCapture, preview }) {
     canvas.getContext('2d').drawImage(video, 0, 0);
     canvas.toBlob(blob => {
       if (!blob) return;
-      onCapture(URL.createObjectURL(blob));
+      onCapture({ url: URL.createObjectURL(blob), blob });
       closeCamera();
     }, 'image/jpeg', 0.92);
   }
@@ -1377,7 +1468,7 @@ function CameraCapture({ label, facingMode, icon, onCapture, preview }) {
       >
         {preview ? (
           <>
-            <img className="id-camera-btn__preview" src={preview} alt={label} />
+            <img className="id-camera-btn__preview" src={preview?.url ?? preview} alt={label} />
             <span className="id-camera-btn__retake">Retake</span>
           </>
         ) : (
@@ -1547,28 +1638,49 @@ function IdentityContent({ onDone, onSave }) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [birthDay, setBirthDay] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [docPhoto, setDocPhoto] = useState(null);
   const [selfiePhoto, setSelfiePhoto] = useState(null);
   const [phoneVerified, setPhoneVerified] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const canSubmit = firstName.trim() && lastName.trim() && birthDay && docPhoto && selfiePhoto;
+  const phoneValid = /^\+\d{7,15}$/.test(phoneNumber.trim());
+  const canSubmit = firstName.trim() && lastName.trim() && birthDay && phoneValid && docPhoto && selfiePhoto && !submitting;
 
   function handleVerifyPhone() {
-    const tg = window.Telegram?.WebApp;
-    if (tg?.requestContact) {
-      tg.requestContact((shared) => {
-        if (shared) setPhoneVerified(true);
+    const tgApp = window.Telegram?.WebApp;
+    if (tgApp?.requestContact) {
+      tgApp.requestContact((shared) => {
+        if (shared) {
+          setPhoneVerified(true);
+          if (shared?.phone_number) setPhoneNumber(shared.phone_number);
+        }
       });
     } else {
       setPhoneVerified(true);
     }
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     if (!canSubmit) return;
-    onSave?.({ firstName, lastName, birthDay, phoneVerified, selfiePhoto, docPhoto });
-    onDone();
+    setSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.append('firstName', firstName);
+      formData.append('lastName', lastName);
+      formData.append('phoneNumber', phoneNumber);
+      formData.append('dateOfBirth', birthDay);
+      if (selfiePhoto?.blob) formData.append('selfieImage', selfiePhoto.blob, 'selfie.jpg');
+      if (docPhoto?.blob)    formData.append('documentImage', docPhoto.blob, 'document.jpg');
+      await usersApi.submitKyc(formData);
+      onSave?.({ firstName, lastName, birthDay, phoneVerified, selfiePhoto: selfiePhoto?.url, docPhoto: docPhoto?.url });
+      onDone();
+    } catch {
+      // error shown via notification bus
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -1599,18 +1711,26 @@ function IdentityContent({ onDone, onSave }) {
             autoComplete="family-name"
           />
         </div>
-        <div className="identity-field-row">
-          <div className="identity-field">
-            <label className="identity-field__label" htmlFor="id-birthday">Birthday</label>
-            <DatePickerField id="id-birthday" value={birthDay} onChange={setBirthDay} />
-          </div>
-          <div className="identity-field">
-            <label className="identity-field__label">Mobile</label>
+        <div className="identity-field">
+          <label className="identity-field__label" htmlFor="id-phone">Mobile Number</label>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input
+              id="id-phone"
+              className={`identity-field__input${phoneNumber && !phoneValid ? ' identity-field__input--error' : ''}`}
+              type="tel"
+              inputMode="tel"
+              placeholder="+989123456789"
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
+              autoComplete="tel"
+              style={{ flex: 1 }}
+            />
             <button
               type="button"
               className={`identity-verify-btn${phoneVerified ? ' identity-verify-btn--verified' : ''}`}
               onClick={handleVerifyPhone}
               disabled={phoneVerified}
+              style={{ flexShrink: 0 }}
             >
               {phoneVerified ? (
                 <>
@@ -1622,14 +1742,18 @@ function IdentityContent({ onDone, onSave }) {
               ) : (
                 <>
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="1" width="8" height="12" rx="2" />
-                    <path d="M6 10h2" />
+                    <path d="M9 2l3 3-3 3" />
+                    <path d="M12 5H6a3 3 0 0 0 0 6h1" />
                   </svg>
-                  Verify Mobile
+                  Telegram
                 </>
               )}
             </button>
           </div>
+        </div>
+        <div className="identity-field">
+          <label className="identity-field__label" htmlFor="id-birthday">Birthday</label>
+          <DatePickerField id="id-birthday" value={birthDay} onChange={setBirthDay} />
         </div>
       </div>
 
@@ -1668,7 +1792,7 @@ function IdentityContent({ onDone, onSave }) {
       </div>
 
       <button type="submit" className="identity-submit" disabled={!canSubmit}>
-        Submit Verification
+        {submitting ? 'Submitting…' : 'Submit Verification'}
       </button>
     </form>
   );
@@ -1750,14 +1874,23 @@ function daysLeft(expiresAt) {
   return Math.round((exp - now) / 86400000);
 }
 
-const MatchingCard = memo(function MatchingCard({ item }) {
+const MatchingCard = memo(function MatchingCard({ item, onUploadScreenshot, onConfirm }) {
   const isSend = item.direction === 'send';
   const amountColor = isSend ? 'var(--amber-deep)' : 'var(--leaf-deep)';
   const sign = isSend ? '−' : '+';
-  const initials = item.counterpart.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+  const cpName = item.counterpart?.name ?? '—';
+  const initials = cpName !== '—'
+    ? cpName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+    : '??';
   const left = daysLeft(item.expiresAt);
   const expiryCls = left > 1 ? 'matching-expiry--ok' : left === 1 ? 'matching-expiry--warn' : left === 0 ? 'matching-expiry--urgent' : 'matching-expiry--expired';
   const expiryLabel = left > 0 ? `${left}d left` : left === 0 ? 'Today' : 'Expired';
+
+  const txStatus = item.transactionStatus;
+  const canUpload  = isSend    && txStatus === 'Pending';
+  const canConfirm = !isSend   && txStatus === 'ScreenshotUploaded';
+  const isSettled  = txStatus  === 'Settled';
+  const isWaiting  = txStatus  === 'Confirmed';
 
   return (
     <article className={`match-card matching-card matching-card--${item.direction}`}>
@@ -1766,8 +1899,8 @@ const MatchingCard = memo(function MatchingCard({ item }) {
 
         <div className="match-card__info">
           <div className="match-card__name-row">
-            <span className="match-card__name">{item.counterpart.name}</span>
-            {item.counterpart.trusted && (
+            <span className="match-card__name">{cpName}</span>
+            {item.counterpart?.trusted && (
               <span className="match-card__trust" aria-label="Trusted">
                 <svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">
                   <path d="M5 0.5L6.18 3.32L9.24 3.55L7.04 5.44L7.73 8.45L5 6.8L2.27 8.45L2.96 5.44L0.76 3.55L3.82 3.32L5 0.5Z"/>
@@ -1780,9 +1913,9 @@ const MatchingCard = memo(function MatchingCard({ item }) {
             </span>
           </div>
           <div className="match-card__meta">
-            <span className="match-card__level">Lv {item.counterpart.level} · {LEVEL_LABELS[item.counterpart.level]}</span>
+            <span className="match-card__level">Lv {item.counterpart?.level ?? 0} · {LEVEL_LABELS[item.counterpart?.level ?? 0]}</span>
             <span className="match-card__sep" aria-hidden="true" />
-            <span className="match-card__method">{item.counterpart.method}</span>
+            <span className="match-card__method">{item.counterpart?.method ?? '—'}</span>
           </div>
         </div>
 
@@ -1808,18 +1941,71 @@ const MatchingCard = memo(function MatchingCard({ item }) {
         </div>
         <span className={`matching-expiry ${expiryCls}`}>{expiryLabel}</span>
       </div>
+
+      {(canUpload || canConfirm || isWaiting || isSettled) && (
+        <div className="matching-card__actions">
+          {canUpload && (
+            <label className="btn btn--primary btn--sm matching-card__action-btn">
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M6.5 9V3M4 5.5l2.5-2.5L9 5.5" />
+                <path d="M2 10.5h9" />
+              </svg>
+              Upload Receipt
+              <input
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) onUploadScreenshot?.(item.transactionId, f);
+                  e.target.value = '';
+                }}
+              />
+            </label>
+          )}
+          {canConfirm && (
+            <button
+              type="button"
+              className="btn btn--primary btn--sm matching-card__action-btn"
+              onClick={() => onConfirm?.(item.transactionId)}
+            >
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M2 6.5l3 3 6-6" />
+              </svg>
+              Confirm Receipt
+            </button>
+          )}
+          {isWaiting && (
+            <span className="matching-card__status-badge matching-card__status-badge--waiting">
+              Waiting for settlement…
+            </span>
+          )}
+          {isSettled && (
+            <span className="matching-card__status-badge matching-card__status-badge--settled">
+              ✓ Settled
+            </span>
+          )}
+        </div>
+      )}
     </article>
   );
 });
 
-const MatchingPage = memo(function MatchingPage() {
-  const sends    = MY_MATCHES.filter(m => m.direction === 'send');
-  const receives = MY_MATCHES.filter(m => m.direction === 'receive');
+const MatchingPage = memo(function MatchingPage({ matches, onUploadScreenshot, onConfirm }) {
+  const sends    = matches.filter(m => m.direction === 'send');
+  const receives = matches.filter(m => m.direction === 'receive');
 
   const Section = ({ title, items, cls }) => items.length === 0 ? null : (
     <div className="matching-section">
       <p className={`matching-section__title ${cls}`}>{title}</p>
-      {items.map(item => <MatchingCard key={item.id} item={item} />)}
+      {items.map(item => (
+        <MatchingCard
+          key={item.id}
+          item={item}
+          onUploadScreenshot={onUploadScreenshot}
+          onConfirm={onConfirm}
+        />
+      ))}
     </div>
   );
 
@@ -1835,20 +2021,42 @@ const HomeSearch = memo(function HomeSearch({ onTap }) {
   const [direction, setDirection] = useState('send');
   const [amount, setAmount] = useState('');
   const [openHelp, setOpenHelp] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
   const helpBtnRef = useRef(null);
 
   const amountNum = parseFloat(amount) || 0;
-  const sourceData = direction === 'send' ? RECEIVED : SENT;
-  const matchType  = direction === 'send' ? 'received' : 'sent';
+  const matchType = direction === 'send' ? 'received' : 'sent';
 
-  const matches = useMemo(() => {
-    if (!amountNum) return [];
-    return sourceData
-      .map(item => ({ item, ratio: Math.abs(item.amount - amountNum) / amountNum }))
-      .filter(x => x.ratio <= 0.5)
-      .sort((a, b) => a.ratio - b.ratio)
-      .slice(0, 10);
-  }, [amountNum, direction, sourceData]);
+  useEffect(() => {
+    if (!amountNum) { setSearchResults([]); return; }
+    setSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const data = await requestsApi.search({
+          type: direction === 'send' ? 'Send' : 'Receive',
+          currency: 'EUR',
+          amount: amountNum,
+        });
+        setSearchResults((data ?? []).map((r) => ({
+          id: r.requestId,
+          name: r.userDisplayName,
+          method: r.paymentMethods?.[0] ?? '—',
+          amount: r.amount,
+          level: r.userLevel,
+          trusted: r.isTrusted,
+          rate: r.rateValue,
+          date: r.createdAt,
+          ratio: Math.abs(r.amount - amountNum) / amountNum,
+        })));
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [amountNum, direction]);
 
   const getMatch = (ratio) => {
     if (ratio <= 0.05) return { label: 'Exact', cls: 'match-badge--exact' };
@@ -1966,14 +2174,15 @@ const HomeSearch = memo(function HomeSearch({ onTap }) {
         <div className="match-results">
           <div className="match-results__header">
             <span className="match-results__title">
-              {matches.length > 0
-                ? `${matches.length} match${matches.length !== 1 ? 'es' : ''} found`
-                : 'No matches found'}
+              {searching ? 'Searching…'
+                : searchResults.length > 0
+                  ? `${searchResults.length} match${searchResults.length !== 1 ? 'es' : ''} found`
+                  : 'No matches found'}
             </span>
             <span className="match-results__sub">±50% · €{amountNum.toLocaleString()}</span>
           </div>
-          {matches.map(({ item, ratio }) => (
-            <MatchCard key={item.id} item={item} type={matchType} ratio={ratio} onTap={onTap} />
+          {searchResults.map((item) => (
+            <MatchCard key={item.id} item={item} type={matchType} ratio={item.ratio} onTap={onTap} />
           ))}
         </div>
       )}
@@ -2057,6 +2266,8 @@ export default function App() {
   const [detail, setDetail] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  // TEMP: show initData for debugging
+  const [showInitData, setShowInitData] = useState(true);
   const [userProfile, setUserProfile] = useState(null);
   const [themeIdx, setThemeIdx] = useState(0);
   const [sentLayout, setSentLayout] = useState('list');
@@ -2066,11 +2277,104 @@ export default function App() {
   const [tallScreen, setTallScreen] = useState(() => window.matchMedia('(min-height: 500px)').matches);
   const [loading, setLoading] = useState(true);
   const [termsAccepted, setTermsAccepted] = useState(() => localStorage.getItem(TERMS_KEY) === 'true');
+  const [sentRequests, setSentRequests] = useState([]);
+  const [receivedRequests, setReceivedRequests] = useState([]);
+  const [myMatches, setMyMatches] = useState(MY_MATCHES);
 
-  useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 4000);
-    return () => clearTimeout(t);
+  const loadMatches = useCallback(() => {
+    matchesApi.getMy().then((data) => {
+      setMyMatches((data ?? []).map((m) => ({
+        id: m.matchId,
+        direction: m.myRequestType === 'Send' ? 'send' : 'receive',
+        counterpart: {
+          name:    m.counterpartDisplayName,
+          level:   m.counterpartLevel,
+          trusted: m.counterpartIsTrusted,
+          method:  m.counterpartPaymentMethods?.[0] ?? '—',
+        },
+        amount:            m.amount,
+        rate:              m.rateValue,
+        requestDate:       m.requestDate,
+        matchDate:         m.matchDate,
+        expiresAt:         m.expiresAt,
+        transactionId:     m.transactionId,
+        transactionStatus: m.transactionStatus,
+      })));
+    }).catch(() => {});
   }, []);
+
+  const handleUploadScreenshot = useCallback(async (transactionId, file) => {
+    try {
+      await transactionsApi.uploadScreenshot(transactionId, file);
+      loadMatches();
+    } catch {}
+  }, [loadMatches]);
+
+  const handleConfirmReceipt = useCallback(async (transactionId) => {
+    try {
+      await transactionsApi.confirm(transactionId);
+      loadMatches();
+    } catch {}
+  }, [loadMatches]);
+
+  // Auth + user profile on startup
+  useEffect(() => {
+    async function init() {
+      try {
+        const initData = tg?.initData;
+        if (initData) {
+          const { token } = await authApi.telegramLogin(initData);
+          tokenStore.set(token);
+        }
+        const userData = await usersApi.getMe();
+        if (userData) {
+          setUserProfile({
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            kycStatus: userData.kycStatus,
+            phoneVerified: true,
+          });
+        }
+      } catch {
+        // not authenticated yet — continue as guest
+      } finally {
+        setLoading(false);
+      }
+    }
+    // Keep 2s minimum splash for UX, then init
+    const splash = new Promise((r) => setTimeout(r, 2000));
+    splash.then(init);
+  }, []);
+
+  // Load sent/received requests when those tabs are activated
+  useEffect(() => {
+    function mapTx(r) {
+      return {
+        id: r.id,
+        name:    r.counterpartDisplayName ?? '—',
+        method:  r.paymentMethod          ?? '—',
+        amount:  r.amount,
+        level:   r.counterpartLevel       ?? 0,
+        trusted: r.counterpartIsTrusted   ?? false,
+        rate:    r.rateValue,
+        date:    r.settledAt ?? r.createdAt,
+      };
+    }
+
+    if (activePage === 'sent') {
+      transactionsApi.getAll({ type: 'Send' })
+        .then((data) => setSentRequests((data ?? []).map(mapTx)))
+        .catch(() => {});
+    }
+    if (activePage === 'received') {
+      transactionsApi.getAll({ type: 'Receive' })
+        .then((data) => setReceivedRequests((data ?? []).map(mapTx)))
+        .catch(() => {});
+    }
+    if (activePage === 'matches') {
+      loadMatches();
+    }
+  }, [activePage]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', THEMES[themeIdx]);
@@ -2129,8 +2433,8 @@ export default function App() {
     }
   }, [activePage]);
 
-  const totalReceived = useMemo(() => RECEIVED.reduce((sum, item) => sum + item.amount, 0), []);
-  const totalSent = useMemo(() => SENT.reduce((sum, item) => sum + item.amount, 0), []);
+  const totalReceived = useMemo(() => receivedRequests.reduce((sum, item) => sum + item.amount, 0), [receivedRequests]);
+  const totalSent     = useMemo(() => sentRequests.reduce((sum, item) => sum + item.amount, 0), [sentRequests]);
 
   const handleTap = useCallback((item, type) => setDetail({ item, type }), []);
   const handleNavigate = useCallback((p) => setActivePage(p), []);
@@ -2222,7 +2526,7 @@ export default function App() {
 
       {activePage === 'sent' && (
         <TransactionListPage
-          data={SENT}
+          data={sentRequests}
           type="sent"
           sort={sentSort}
           layout={sentLayout}
@@ -2233,7 +2537,7 @@ export default function App() {
       )}
       {activePage === 'received' && (
         <TransactionListPage
-          data={RECEIVED}
+          data={receivedRequests}
           type="received"
           sort={receivedSort}
           layout={receivedLayout}
@@ -2243,10 +2547,31 @@ export default function App() {
         />
       )}
 
-      {activePage === 'matches' && <MatchingPage />}
+      {activePage === 'matches' && (
+        <MatchingPage
+          matches={myMatches}
+          onUploadScreenshot={handleUploadScreenshot}
+          onConfirm={handleConfirmReceipt}
+        />
+      )}
 
       {detail && <DetailSheet item={detail.item} type={detail.type} onClose={handleDetailClose} />}
       {showAdd && <ExchangeModal onClose={handleExchangeClose} />}
+      {/* TEMP: initData debug modal */}
+      {showInitData && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem' }}
+          onClick={() => setShowInitData(false)}>
+          <div style={{ background:'#1a1a2e', color:'#e2e8f0', borderRadius:'12px', padding:'1rem', maxWidth:'90vw', maxHeight:'80vh', overflowY:'auto', wordBreak:'break-all', fontSize:'13px', lineHeight:'1.5' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontWeight:'bold', marginBottom:'0.5rem', color:'#a78bfa' }}>initData (DEBUG)</div>
+            <pre style={{ margin:0, whiteSpace:'pre-wrap' }}>{tg?.initData || '(empty — not in Telegram)'}</pre>
+            <button onClick={() => setShowInitData(false)}
+              style={{ marginTop:'0.75rem', width:'100%', padding:'0.5rem', background:'#7c3aed', color:'#fff', border:'none', borderRadius:'8px', cursor:'pointer' }}>
+              بستن
+            </button>
+          </div>
+        </div>
+      )}
       {showProfile && (
         <ProfileModal
           onClose={handleProfileClose}
