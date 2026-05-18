@@ -336,6 +336,19 @@ const TransactionListPage = memo(function TransactionListPage({ data, type, sort
     return [...data].sort((a, b) => sort === 'highest' ? b.amount - a.amount : a.amount - b.amount);
   }, [data, sort]);
 
+  if (data.length === 0) {
+    return (
+      <div className="empty-state" role="status">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className="empty-state__icon" aria-hidden="true">
+          <rect x="2" y="5" width="20" height="14" rx="2" />
+          <line x1="2" y1="10" x2="22" y2="10" />
+        </svg>
+        <p className="empty-state__text">No {type} transactions yet</p>
+        <p className="empty-state__sub">Your completed transactions will appear here.</p>
+      </div>
+    );
+  }
+
   return (
     <>
       <SortBar sort={sort} onSort={onSort} layout={layout} onToggleLayout={onLayoutToggle} />
@@ -360,10 +373,19 @@ const TransactionListPage = memo(function TransactionListPage({ data, type, sort
   );
 });
 
+const TX_STATUS_DISPLAY = {
+  Pending:            { label: 'Pending',         color: 'var(--amber-deep)' },
+  ScreenshotUploaded: { label: 'Payment Uploaded', color: 'var(--amber-deep)' },
+  Confirmed:          { label: 'Confirmed',        color: 'var(--leaf-deep)'  },
+  Settled:            { label: 'Completed',        color: 'var(--leaf-deep)'  },
+  Disputed:           { label: 'Disputed',         color: 'var(--rose-deep)'  },
+};
+
 function DetailSheet({ item, type, onClose }) {
   const isReceived = type === 'received';
   const sign = isReceived ? '+' : '−';
   const color = isReceived ? 'var(--leaf-deep)' : 'var(--amber-deep)';
+  const statusInfo = TX_STATUS_DISPLAY[item.status] ?? { label: item.status ?? 'Unknown', color: 'var(--muted)' };
 
   return (
     <div className="sheet-backdrop" onClick={onClose}>
@@ -382,20 +404,83 @@ function DetailSheet({ item, type, onClose }) {
           <span className="detail-row__label">Method</span>
           <span className="detail-row__value">{item.method}</span>
         </div>
-        <div className="detail-row">
-          <span className="detail-row__label">Reference</span>
-          <span className="detail-row__value" style={{ fontVariantNumeric: 'tabular-nums' }}>
-            #TX-{item.id.toUpperCase()}-{(item.amount * 7).toString(36).toUpperCase()}
-          </span>
-        </div>
+        {item.reference && (
+          <div className="detail-row">
+            <span className="detail-row__label">Reference</span>
+            <span className="detail-row__value" style={{ fontVariantNumeric: 'tabular-nums' }}>
+              {item.reference}
+            </span>
+          </div>
+        )}
         <div className="detail-row">
           <span className="detail-row__label">Status</span>
-          <span className="detail-row__value" style={{ color: 'var(--leaf-deep)' }}>Completed</span>
+          <span className="detail-row__value" style={{ color: statusInfo.color }}>{statusInfo.label}</span>
         </div>
 
         <div className="sheet-actions">
           <button type="button" className="btn btn--ghost" onClick={onClose}>Close</button>
-          <button type="button" className="btn btn--primary">Download Receipt</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MatchConfirmSheet({ item, userDirection, onClose, onConfirmed }) {
+  const [loading, setLoading] = useState(false);
+  const isSend = userDirection === 'send';
+  const amountColor = isSend ? 'var(--amber-deep)' : 'var(--leaf-deep)';
+  const sign = isSend ? '−' : '+';
+
+  async function handleConfirm() {
+    setLoading(true);
+    try {
+      await matchesApi.create({ requestId: item.id });
+      onConfirmed();
+    } catch {
+      // error shown via notification bus
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="sheet-backdrop" onClick={onClose}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet__handle" />
+        <div className="sheet__title">Confirm Match</div>
+        <p className="sheet__sub">
+          {isSend ? `You send to ${item.name}` : `You receive from ${item.name}`} · via {item.method}
+        </p>
+
+        <div className="detail-row">
+          <span className="detail-row__label">Amount</span>
+          <span className="detail-row__value detail-row__value--big" style={{ color: amountColor }}>
+            {sign}€{item.amount.toLocaleString()}
+          </span>
+        </div>
+        <div className="detail-row">
+          <span className="detail-row__label">Rate</span>
+          <span className="detail-row__value">{item.rate.toLocaleString()} T</span>
+        </div>
+        <div className="detail-row">
+          <span className="detail-row__label">Method</span>
+          <span className="detail-row__value">{item.method}</span>
+        </div>
+        <div className="detail-row">
+          <span className="detail-row__label">User Level</span>
+          <span className="detail-row__value">
+            Lv {item.level}
+            {item.trusted && <span className="match-card__trust" style={{ marginLeft: 6 }}>Trust</span>}
+          </span>
+        </div>
+
+        <div className="sheet-actions">
+          <button type="button" className="btn btn--ghost" onClick={onClose} disabled={loading}>
+            Cancel
+          </button>
+          <button type="button" className="btn btn--primary" onClick={handleConfirm} disabled={loading}>
+            {loading ? 'Creating…' : 'Create Match'}
+          </button>
         </div>
       </div>
     </div>
@@ -413,10 +498,6 @@ const EXCHANGE_METHODS = ['Revolut', 'Zelle', 'PayPal', 'SEPA', 'Wire'];
 const BONBAST_RATE = 160_000;
 const URGENT_RATE  = 150_000;
 
-const SAVED_RECEIVERS = [
-  { id: 'r1', firstName: 'Shahram', lastName: 'Oweisy',  iban: 'IR837489279472984729847296' },
-  { id: 'r2', firstName: 'Reza',    lastName: 'Mohebi',  iban: 'IR678732647826487687326450' },
-];
 
 function prefixPadding(symbol) {
   if (symbol.length >= 3) return '52px';
@@ -1329,8 +1410,14 @@ const ProfileModal = memo(function ProfileModal({ onClose, onProfile, onIdentity
   );
 });
 
+const KYC_STATUS_DISPLAY = {
+  Pending:  { label: 'Under Review', color: 'var(--amber-deep)' },
+  Approved: { label: 'Verified',     color: 'var(--leaf-deep)'  },
+  Rejected: { label: 'Rejected',     color: 'var(--rose-deep)'  },
+};
+
 function ProfileContent({ profile }) {
-  const { firstName, lastName, phoneVerified, selfiePhoto, docPhoto } = profile ?? {};
+  const { firstName, lastName, phoneVerified, selfiePhoto, docPhoto, kycStatus } = profile ?? {};
 
   const PhotoItem = ({ label, photo }) => (
     <div className="profile-photo-item">
@@ -1393,6 +1480,18 @@ function ProfileContent({ profile }) {
           </div>
         </div>
       </div>
+
+      {kycStatus && (
+        <div className="identity-section">
+          <p className="identity-section__label">KYC Status</p>
+          <div className="identity-field">
+            <label className="identity-field__label">Verification</label>
+            <div className="profile-value" style={{ color: KYC_STATUS_DISPLAY[kycStatus]?.color ?? 'var(--muted)' }}>
+              {KYC_STATUS_DISPLAY[kycStatus]?.label ?? kycStatus}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="identity-section">
         <p className="identity-section__label">Photo Verification</p>
@@ -1874,7 +1973,7 @@ function daysLeft(expiresAt) {
   return Math.round((exp - now) / 86400000);
 }
 
-const MatchingCard = memo(function MatchingCard({ item, onUploadScreenshot, onConfirm }) {
+const MatchingCard = memo(function MatchingCard({ item, onUploadScreenshot, onConfirm, onSettle }) {
   const isSend = item.direction === 'send';
   const amountColor = isSend ? 'var(--amber-deep)' : 'var(--leaf-deep)';
   const sign = isSend ? '−' : '+';
@@ -1887,10 +1986,11 @@ const MatchingCard = memo(function MatchingCard({ item, onUploadScreenshot, onCo
   const expiryLabel = left > 0 ? `${left}d left` : left === 0 ? 'Today' : 'Expired';
 
   const txStatus = item.transactionStatus;
-  const canUpload  = isSend    && txStatus === 'Pending';
-  const canConfirm = !isSend   && txStatus === 'ScreenshotUploaded';
-  const isSettled  = txStatus  === 'Settled';
-  const isWaiting  = txStatus  === 'Confirmed';
+  const canUpload  = isSend  && txStatus === 'Pending';
+  const canConfirm = !isSend && txStatus === 'ScreenshotUploaded';
+  const canSettle  = txStatus === 'Confirmed';
+  const isSettled  = txStatus === 'Settled';
+  const isDisputed = txStatus === 'Disputed';
 
   return (
     <article className={`match-card matching-card matching-card--${item.direction}`}>
@@ -1942,7 +2042,7 @@ const MatchingCard = memo(function MatchingCard({ item, onUploadScreenshot, onCo
         <span className={`matching-expiry ${expiryCls}`}>{expiryLabel}</span>
       </div>
 
-      {(canUpload || canConfirm || isWaiting || isSettled) && (
+      {(canUpload || canConfirm || canSettle || isSettled || isDisputed) && (
         <div className="matching-card__actions">
           {canUpload && (
             <label className="btn btn--primary btn--sm matching-card__action-btn">
@@ -1975,14 +2075,27 @@ const MatchingCard = memo(function MatchingCard({ item, onUploadScreenshot, onCo
               Confirm Receipt
             </button>
           )}
-          {isWaiting && (
-            <span className="matching-card__status-badge matching-card__status-badge--waiting">
-              Waiting for settlement…
-            </span>
+          {canSettle && (
+            <button
+              type="button"
+              className="btn btn--primary btn--sm matching-card__action-btn"
+              onClick={() => onSettle?.(item.transactionId)}
+            >
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M2 6.5l3 3 6-6" />
+                <path d="M9 2.5v8" />
+              </svg>
+              Settle
+            </button>
           )}
           {isSettled && (
             <span className="matching-card__status-badge matching-card__status-badge--settled">
               ✓ Settled
+            </span>
+          )}
+          {isDisputed && (
+            <span className="matching-card__status-badge matching-card__status-badge--disputed">
+              ⚠ Disputed
             </span>
           )}
         </div>
@@ -1991,7 +2104,7 @@ const MatchingCard = memo(function MatchingCard({ item, onUploadScreenshot, onCo
   );
 });
 
-const MatchingPage = memo(function MatchingPage({ matches, onUploadScreenshot, onConfirm }) {
+const MatchingPage = memo(function MatchingPage({ matches, onUploadScreenshot, onConfirm, onSettle }) {
   const sends    = matches.filter(m => m.direction === 'send');
   const receives = matches.filter(m => m.direction === 'receive');
 
@@ -2004,10 +2117,24 @@ const MatchingPage = memo(function MatchingPage({ matches, onUploadScreenshot, o
           item={item}
           onUploadScreenshot={onUploadScreenshot}
           onConfirm={onConfirm}
+          onSettle={onSettle}
         />
       ))}
     </div>
   );
+
+  if (sends.length === 0 && receives.length === 0) {
+    return (
+      <div className="empty-state" role="status">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className="empty-state__icon" aria-hidden="true">
+          <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+          <path d="M15 5l4 4" />
+        </svg>
+        <p className="empty-state__text">No active matches</p>
+        <p className="empty-state__sub">Create an exchange request to get matched with another user.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="page-scroll matching-page">
@@ -2017,7 +2144,7 @@ const MatchingPage = memo(function MatchingPage({ matches, onUploadScreenshot, o
   );
 });
 
-const HomeSearch = memo(function HomeSearch({ onTap }) {
+const HomeSearch = memo(function HomeSearch({ onMatchTap }) {
   const [direction, setDirection] = useState('send');
   const [amount, setAmount] = useState('');
   const [openHelp, setOpenHelp] = useState(false);
@@ -2182,7 +2309,7 @@ const HomeSearch = memo(function HomeSearch({ onTap }) {
             <span className="match-results__sub">±50% · €{amountNum.toLocaleString()}</span>
           </div>
           {searchResults.map((item) => (
-            <MatchCard key={item.id} item={item} type={matchType} ratio={item.ratio} onTap={onTap} />
+            <MatchCard key={item.id} item={item} type={matchType} ratio={item.ratio} onTap={() => onMatchTap(item, direction)} />
           ))}
         </div>
       )}
@@ -2190,84 +2317,12 @@ const HomeSearch = memo(function HomeSearch({ onTap }) {
   );
 });
 
-const RECEIVED = [
-  { id: 'r1',  name: 'Kian M.',     method: 'Revolut', amount: 100, level: 3, trusted: false, rate: 160000, date: '2025-05-08' },
-  { id: 'r2',  name: 'Sara R.',     method: 'Zelle',   amount: 50,  level: 1, trusted: false, rate: 155000, date: '2025-05-11' },
-  { id: 'r3',  name: 'Mina H.',     method: 'SEPA',    amount: 200, level: 4, trusted: true,  rate: 163000, date: '2025-04-22' },
-  { id: 'r4',  name: 'Parisa K.',   method: 'Revolut', amount: 80,  level: 2, trusted: false, rate: 157500, date: '2025-05-09' },
-  { id: 'r5',  name: 'Ali F.',      method: 'Zelle',   amount: 150, level: 3, trusted: true,  rate: 161000, date: '2025-05-06' },
-  { id: 'r6',  name: 'Dina S.',     method: 'SEPA',    amount: 60,  level: 1, trusted: false, rate: 155000, date: '2025-05-12' },
-  { id: 'r7',  name: 'Navid R.',    method: 'Revolut', amount: 120, level: 3, trusted: false, rate: 159500, date: '2025-05-03' },
-  { id: 'r8',  name: 'Shirin A.',   method: 'Zelle',   amount: 95,  level: 2, trusted: false, rate: 158000, date: '2025-05-10' },
-  { id: 'r9',  name: 'Babak M.',    method: 'SEPA',    amount: 175, level: 4, trusted: true,  rate: 162500, date: '2025-04-30' },
-  { id: 'r10', name: 'Yasmin H.',   method: 'Revolut', amount: 40,  level: 1, trusted: false, rate: 154000, date: '2025-05-12' },
-  { id: 'r11', name: 'Kamran T.',   method: 'Zelle',   amount: 220, level: 4, trusted: true,  rate: 163500, date: '2025-04-18' },
-  { id: 'r12', name: 'Noushin P.',  method: 'SEPA',    amount: 65,  level: 2, trusted: false, rate: 156000, date: '2025-05-07' },
-  { id: 'r13', name: 'Amir E.',     method: 'Revolut', amount: 310, level: 5, trusted: true,  rate: 165500, date: '2025-03-28' },
-  { id: 'r14', name: 'Golnaz F.',   method: 'Zelle',   amount: 88,  level: 2, trusted: false, rate: 157000, date: '2025-05-09' },
-  { id: 'r15', name: 'Cyrus B.',    method: 'SEPA',    amount: 130, level: 3, trusted: false, rate: 160000, date: '2025-05-02' },
-  { id: 'r16', name: 'Saman K.',    method: 'Revolut', amount: 55,  level: 1, trusted: false, rate: 155500, date: '2025-05-11' },
-  { id: 'r17', name: 'Ladan V.',    method: 'Zelle',   amount: 190, level: 3, trusted: true,  rate: 162000, date: '2025-04-25' },
-  { id: 'r18', name: 'Hooman D.',   method: 'SEPA',    amount: 70,  level: 2, trusted: false, rate: 156500, date: '2025-05-08' },
-  { id: 'r19', name: 'Farzad N.',   method: 'Revolut', amount: 250, level: 5, trusted: true,  rate: 164000, date: '2025-04-10' },
-  { id: 'r20', name: 'Roxana J.',   method: 'Zelle',   amount: 45,  level: 1, trusted: false, rate: 154500, date: '2025-05-12' },
-  { id: 'r21', name: 'Dariush M.',  method: 'SEPA',    amount: 160, level: 3, trusted: false, rate: 161000, date: '2025-05-04' },
-];
-
-const SENT = [
-  { id: 's1',  name: 'Shahram K.',  method: 'Revolut', amount: 200, level: 4, trusted: true,  rate: 162000, date: '2025-05-10' },
-  { id: 's2',  name: 'Neda A.',     method: 'Zelle',   amount: 75,  level: 2, trusted: false, rate: 157000, date: '2025-05-11' },
-  { id: 's3',  name: 'Reza P.',     method: 'SEPA',    amount: 120, level: 3, trusted: true,  rate: 160000, date: '2025-04-22' },
-  { id: 's4',  name: 'Leila M.',    method: 'Revolut', amount: 90,  level: 2, trusted: false, rate: 158500, date: '2025-05-08' },
-  { id: 's5',  name: 'Omid T.',     method: 'Zelle',   amount: 45,  level: 1, trusted: false, rate: 155000, date: '2025-05-12' },
-  { id: 's6',  name: 'Farid N.',    method: 'SEPA',    amount: 300, level: 5, trusted: true,  rate: 165000, date: '2025-04-01' },
-  { id: 's7',  name: 'Tara S.',     method: 'Revolut', amount: 135, level: 3, trusted: false, rate: 160000, date: '2025-05-05' },
-  { id: 's8',  name: 'Pouya L.',    method: 'Zelle',   amount: 60,  level: 1, trusted: false, rate: 156000, date: '2025-05-09' },
-  { id: 's9',  name: 'Mahsa G.',    method: 'SEPA',    amount: 185, level: 3, trusted: true,  rate: 162000, date: '2025-04-28' },
-  { id: 's10', name: 'Siavash R.',  method: 'Revolut', amount: 50,  level: 1, trusted: false, rate: 155000, date: '2025-05-11' },
-  { id: 's11', name: 'Nasim K.',    method: 'Zelle',   amount: 275, level: 4, trusted: true,  rate: 164000, date: '2025-04-15' },
-  { id: 's12', name: 'Behzad O.',   method: 'SEPA',    amount: 95,  level: 2, trusted: false, rate: 158000, date: '2025-05-06' },
-  { id: 's13', name: 'Marjan T.',   method: 'Revolut', amount: 410, level: 5, trusted: true,  rate: 167000, date: '2025-03-20' },
-  { id: 's14', name: 'Arash C.',    method: 'Zelle',   amount: 72,  level: 2, trusted: false, rate: 157000, date: '2025-05-10' },
-  { id: 's15', name: 'Firouzeh B.', method: 'SEPA',    amount: 115, level: 3, trusted: false, rate: 159000, date: '2025-05-04' },
-  { id: 's16', name: 'Kaveh M.',    method: 'Revolut', amount: 340, level: 5, trusted: true,  rate: 165500, date: '2025-03-28' },
-  { id: 's17', name: 'Zara P.',     method: 'Zelle',   amount: 83,  level: 2, trusted: false, rate: 157500, date: '2025-05-07' },
-  { id: 's18', name: 'Hamed V.',    method: 'SEPA',    amount: 155, level: 3, trusted: true,  rate: 161000, date: '2025-04-26' },
-  { id: 's19', name: 'Elnaz D.',    method: 'Revolut', amount: 60,  level: 1, trusted: false, rate: 156000, date: '2025-05-09' },
-  { id: 's20', name: 'Morteza F.',  method: 'Zelle',   amount: 230, level: 4, trusted: true,  rate: 163000, date: '2025-04-18' },
-  { id: 's21', name: 'Shadi N.',    method: 'SEPA',    amount: 78,  level: 1, trusted: false, rate: 156500, date: '2025-05-08' },
-];
-
-const MY_MATCHES = [
-  {
-    id: 'mx1', direction: 'send',
-    counterpart: { name: 'Sara R.',  level: 2, trusted: false, method: 'Zelle'   },
-    amount: 150, rate: 162000, requestDate: '2026-05-10', matchDate: '2026-05-13', expiresAt: '2026-05-18',
-  },
-  {
-    id: 'mx2', direction: 'receive',
-    counterpart: { name: 'Mina H.',  level: 4, trusted: true,  method: 'SEPA'    },
-    amount: 200, rate: 163000, requestDate: '2026-05-08', matchDate: '2026-05-12', expiresAt: '2026-05-16',
-  },
-  {
-    id: 'mx3', direction: 'send',
-    counterpart: { name: 'Kian M.',  level: 3, trusted: false, method: 'Revolut' },
-    amount: 80,  rate: 160000, requestDate: '2026-05-13', matchDate: '2026-05-14', expiresAt: '2026-05-17',
-  },
-  {
-    id: 'mx4', direction: 'receive',
-    counterpart: { name: 'Ali F.',   level: 3, trusted: true,  method: 'Revolut' },
-    amount: 120, rate: 161000, requestDate: '2026-05-07', matchDate: '2026-05-11', expiresAt: '2026-05-14',
-  },
-];
-
 export default function App() {
   const [activePage, setActivePage] = useState('home');
   const [detail, setDetail] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  // TEMP: show initData for debugging
-  const [showInitData, setShowInitData] = useState(true);
+  const [matchConfirm, setMatchConfirm] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [themeIdx, setThemeIdx] = useState(0);
   const [sentLayout, setSentLayout] = useState('list');
@@ -2279,7 +2334,7 @@ export default function App() {
   const [termsAccepted, setTermsAccepted] = useState(() => localStorage.getItem(TERMS_KEY) === 'true');
   const [sentRequests, setSentRequests] = useState([]);
   const [receivedRequests, setReceivedRequests] = useState([]);
-  const [myMatches, setMyMatches] = useState(MY_MATCHES);
+  const [myMatches, setMyMatches] = useState([]);
 
   const loadMatches = useCallback(() => {
     matchesApi.getMy().then((data) => {
@@ -2317,6 +2372,13 @@ export default function App() {
     } catch {}
   }, [loadMatches]);
 
+  const handleSettle = useCallback(async (transactionId) => {
+    try {
+      await transactionsApi.settle(transactionId);
+      loadMatches();
+    } catch {}
+  }, [loadMatches]);
+
   // Auth + user profile on startup
   useEffect(() => {
     async function init() {
@@ -2329,10 +2391,12 @@ export default function App() {
         const userData = await usersApi.getMe();
         if (userData) {
           setUserProfile({
-            firstName: userData.firstName,
-            lastName: userData.lastName,
-            kycStatus: userData.kycStatus,
-            phoneVerified: true,
+            firstName:     userData.firstName,
+            lastName:      userData.lastName,
+            kycStatus:     userData.kycStatus,
+            phoneVerified: userData.phoneVerified ?? false,
+            selfiePhoto:   userData.selfieImageUrl   ?? null,
+            docPhoto:      userData.documentImageUrl ?? null,
           });
         }
       } catch {
@@ -2350,14 +2414,16 @@ export default function App() {
   useEffect(() => {
     function mapTx(r) {
       return {
-        id: r.id,
-        name:    r.counterpartDisplayName ?? '—',
-        method:  r.paymentMethod          ?? '—',
-        amount:  r.amount,
-        level:   r.counterpartLevel       ?? 0,
-        trusted: r.counterpartIsTrusted   ?? false,
-        rate:    r.rateValue,
-        date:    r.settledAt ?? r.createdAt,
+        id:        r.id,
+        name:      r.counterpartDisplayName ?? '—',
+        method:    r.paymentMethod          ?? '—',
+        amount:    r.amount,
+        level:     r.counterpartLevel       ?? 0,
+        trusted:   r.counterpartIsTrusted   ?? false,
+        rate:      r.rateValue,
+        date:      r.settledAt ?? r.createdAt,
+        status:    r.status,
+        reference: r.referenceCode ?? null,
       };
     }
 
@@ -2437,6 +2503,13 @@ export default function App() {
   const totalSent     = useMemo(() => sentRequests.reduce((sum, item) => sum + item.amount, 0), [sentRequests]);
 
   const handleTap = useCallback((item, type) => setDetail({ item, type }), []);
+  const handleMatchTap = useCallback((item, direction) => setMatchConfirm({ item, direction }), []);
+  const handleMatchConfirmed = useCallback(() => {
+    setMatchConfirm(null);
+    setActivePage('matches');
+    loadMatches();
+  }, [loadMatches]);
+  const handleMatchConfirmClose = useCallback(() => setMatchConfirm(null), []);
   const handleNavigate = useCallback((p) => setActivePage(p), []);
   const handleNavigateHome = useCallback(() => setActivePage('home'), []);
   const handleProfileOpen = useCallback(() => setShowProfile(true), []);
@@ -2510,7 +2583,7 @@ export default function App() {
       onExchange={handleExchangeOpen}
     >
       {activePage === 'home' && (
-        <HomeSearch onTap={handleTap} />
+        <HomeSearch onMatchTap={handleMatchTap} />
       )}
 
       {activePage === 'identity' && (
@@ -2552,26 +2625,20 @@ export default function App() {
           matches={myMatches}
           onUploadScreenshot={handleUploadScreenshot}
           onConfirm={handleConfirmReceipt}
+          onSettle={handleSettle}
         />
       )}
 
       {detail && <DetailSheet item={detail.item} type={detail.type} onClose={handleDetailClose} />}
-      {showAdd && <ExchangeModal onClose={handleExchangeClose} />}
-      {/* TEMP: initData debug modal */}
-      {showInitData && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem' }}
-          onClick={() => setShowInitData(false)}>
-          <div style={{ background:'#1a1a2e', color:'#e2e8f0', borderRadius:'12px', padding:'1rem', maxWidth:'90vw', maxHeight:'80vh', overflowY:'auto', wordBreak:'break-all', fontSize:'13px', lineHeight:'1.5' }}
-            onClick={e => e.stopPropagation()}>
-            <div style={{ fontWeight:'bold', marginBottom:'0.5rem', color:'#a78bfa' }}>initData (DEBUG)</div>
-            <pre style={{ margin:0, whiteSpace:'pre-wrap' }}>{tg?.initData || '(empty — not in Telegram)'}</pre>
-            <button onClick={() => setShowInitData(false)}
-              style={{ marginTop:'0.75rem', width:'100%', padding:'0.5rem', background:'#7c3aed', color:'#fff', border:'none', borderRadius:'8px', cursor:'pointer' }}>
-              بستن
-            </button>
-          </div>
-        </div>
+      {matchConfirm && (
+        <MatchConfirmSheet
+          item={matchConfirm.item}
+          userDirection={matchConfirm.direction}
+          onClose={handleMatchConfirmClose}
+          onConfirmed={handleMatchConfirmed}
+        />
       )}
+      {showAdd && <ExchangeModal onClose={handleExchangeClose} />}
       {showProfile && (
         <ProfileModal
           onClose={handleProfileClose}
