@@ -495,6 +495,11 @@ const CURRENCIES = [
 
 const EXCHANGE_METHODS = ['Revolut', 'Zelle', 'PayPal', 'SEPA', 'Wire'];
 
+const CURRENCY_ENUM       = { EUR: 0, USD: 1, CAD: 2 };
+const REQUEST_TYPE_ENUM   = { send: 0, receive: 1 };
+const RATE_TYPE_ENUM      = { Market: 0, Instant: 1, Custom: 2 };
+const PAYMENT_METHOD_ENUM = { Revolut: 0, Zelle: 1, PayPal: 2, SEPA: 3, Wire: 4 };
+
 const BONBAST_RATE = 160_000;
 const URGENT_RATE  = 150_000;
 
@@ -531,6 +536,7 @@ function ExchangeModal({ onClose }) {
   const [previewData, setPreviewData] = useState(null);
   const [savedReceivers, setSavedReceivers] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   // Load exchange rates on mount
   useEffect(() => {
@@ -564,10 +570,10 @@ function ExchangeModal({ onClose }) {
     const timer = setTimeout(async () => {
       try {
         const result = await requestsApi.preview({
-          type: direction === 'send' ? 'Send' : 'Receive',
-          currency,
+          type: REQUEST_TYPE_ENUM[direction],
+          currency: CURRENCY_ENUM[currency],
           amount: amtNum,
-          rateType,
+          rateType: RATE_TYPE_ENUM[rateType],
           customRate: customRateVal,
         });
         setPreviewData(result);
@@ -616,6 +622,35 @@ function ExchangeModal({ onClose }) {
   const totalAmt      = previewData?.totalAmount      ?? 0;
   const rateDisplay   = previewData?.rateValue        ?? (parseFloat(proposedAmount) || 0);
 
+  const handleGoToStep2 = async () => {
+    const amtNum = parseFloat(amount);
+    const rateType = selectedRate === 'bonbast' ? 'Market'
+      : selectedRate === 'urgent'  ? 'Instant'
+      : showCustomInput            ? 'Custom'
+      : null;
+    const customRateVal = rateType === 'Custom' ? parseFloat(proposedAmount) || null : null;
+
+    if (amtNum && rateType && (rateType !== 'Custom' || customRateVal)) {
+      setPreviewLoading(true);
+      try {
+        const result = await requestsApi.preview({
+          type: REQUEST_TYPE_ENUM[direction],
+          currency: CURRENCY_ENUM[currency],
+          amount: amtNum,
+          rateType: RATE_TYPE_ENUM[rateType],
+          customRate: customRateVal,
+        });
+        setPreviewData(result);
+      } catch {
+        setPreviewData(null);
+      } finally {
+        setPreviewLoading(false);
+      }
+    }
+
+    setStep(2);
+  };
+
   const handleSubmit = async () => {
     if (!step2Valid) return;
     setSubmitting(true);
@@ -631,16 +666,16 @@ function ExchangeModal({ onClose }) {
         });
         receiverId = created?.id;
       }
-      const rateType = selectedRate === 'bonbast' ? 'Market'
+      const rateTypeStr = selectedRate === 'bonbast' ? 'Market'
         : selectedRate === 'urgent'  ? 'Instant'
         : 'Custom';
       await requestsApi.create({
-        type: direction === 'send' ? 'Send' : 'Receive',
-        currency,
+        type: REQUEST_TYPE_ENUM[direction],
+        currency: CURRENCY_ENUM[currency],
         amount: parseFloat(amount),
-        rateType,
-        customRate: rateType === 'Custom' ? parseFloat(proposedAmount) || null : null,
-        paymentMethods: methods,
+        rateType: RATE_TYPE_ENUM[rateTypeStr],
+        customRate: rateTypeStr === 'Custom' ? parseFloat(proposedAmount) || null : null,
+        paymentMethods: methods.map((m) => PAYMENT_METHOD_ENUM[m]),
         receiverId,
       });
       onClose();
@@ -850,14 +885,14 @@ function ExchangeModal({ onClose }) {
               <button
                 type="button"
                 className="btn btn--primary"
-                disabled={!step1Valid}
-                onClick={() => setStep(2)}
+                disabled={!step1Valid || previewLoading}
+                onClick={handleGoToStep2}
               >
                 <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="6.5" cy="6.5" r="5" />
                   <path d="M4.5 6.5h4M7 4.5l2 2-2 2" />
                 </svg>
-                Receiver Information
+                {previewLoading ? 'Loading…' : 'Receiver Information'}
               </button>
             </div>
           </>
