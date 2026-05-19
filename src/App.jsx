@@ -669,7 +669,7 @@ function ExchangeModal({ onClose }) {
       const rateTypeStr = selectedRate === 'bonbast' ? 'Market'
         : selectedRate === 'urgent'  ? 'Instant'
         : 'Custom';
-      await requestsApi.create({
+      const createPayload = {
         type: REQUEST_TYPE_ENUM[direction],
         currency: CURRENCY_ENUM[currency],
         amount: parseFloat(amount),
@@ -677,7 +677,9 @@ function ExchangeModal({ onClose }) {
         customRate: rateTypeStr === 'Custom' ? parseFloat(proposedAmount) || null : null,
         paymentMethods: methods.map((m) => PAYMENT_METHOD_ENUM[m]),
         receiverId,
-      });
+      };
+      alert(`POST /api/Requests payload:\n${JSON.stringify(createPayload, null, 2)}`);
+      await requestsApi.create(createPayload);
       onClose();
     } catch {
       // error shown via notification bus
