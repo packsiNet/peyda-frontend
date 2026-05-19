@@ -1446,9 +1446,10 @@ const ProfileModal = memo(function ProfileModal({ onClose, onProfile, onIdentity
 });
 
 const KYC_STATUS_DISPLAY = {
-  Pending:  { label: 'Under Review', color: 'var(--amber-deep)' },
-  Approved: { label: 'Verified',     color: 'var(--leaf-deep)'  },
-  Rejected: { label: 'Rejected',     color: 'var(--rose-deep)'  },
+  0: { label: 'Not Submitted', color: 'var(--ink-soft)'   },
+  1: { label: 'Under Review',  color: 'var(--amber-deep)' },
+  2: { label: 'Verified',      color: 'var(--leaf-deep)'  },
+  3: { label: 'Rejected',      color: 'var(--rose-deep)'  },
 };
 
 function ProfileContent({ profile }) {
@@ -1768,7 +1769,7 @@ function DatePickerField({ id, value, onChange }) {
   );
 }
 
-const KYC_STATUS = { PENDING: 0, APPROVED: 1, REJECTED: 2 };
+const KYC_STATUS = { NOT_SUBMITTED: 0, PENDING: 1, APPROVED: 2, REJECTED: 3 };
 
 const KYC_STATUS_BANNER = {
   [KYC_STATUS.PENDING]: {
