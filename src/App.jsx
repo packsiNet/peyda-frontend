@@ -1792,8 +1792,15 @@ function IdentityContent({ profile, onDone, onSave }) {
       if (!success) { setVerifyingPhone(false); return; }
       const raw = result?.contact?.phone_number ?? result?.phone_number ?? '';
       const normalized = raw.startsWith('+') ? raw : `+${raw}`;
-      alert(`DEBUG – raw: ${raw}\nnormalized: ${normalized}\nfull result: ${JSON.stringify(result)}`);
-      setVerifyingPhone(false);
+      try {
+        await usersApi.verifyPhone(normalized);
+        setPhoneNumber(normalized);
+        setPhoneVerified(true);
+      } catch {
+        // error shown via notification bus
+      } finally {
+        setVerifyingPhone(false);
+      }
     });
   }
 
