@@ -1778,8 +1778,7 @@ function IdentityContent({ onDone, onSave }) {
   const [phoneVerified, setPhoneVerified] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const phoneValid = /^\+\d{7,15}$/.test(phoneNumber.trim());
-  const canSubmit = firstName.trim() && lastName.trim() && birthDay && phoneValid && docPhoto && selfiePhoto && !submitting;
+  const canSubmit = firstName.trim() && lastName.trim() && birthDay && phoneVerified && docPhoto && selfiePhoto && !submitting;
 
   function handleVerifyPhone() {
     const tgApp = window.Telegram?.WebApp;
@@ -1846,44 +1845,30 @@ function IdentityContent({ onDone, onSave }) {
           />
         </div>
         <div className="identity-field">
-          <label className="identity-field__label" htmlFor="id-phone">Mobile Number</label>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <input
-              id="id-phone"
-              className={`identity-field__input${phoneNumber && !phoneValid ? ' identity-field__input--error' : ''}`}
-              type="tel"
-              inputMode="tel"
-              placeholder="+989123456789"
-              value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
-              autoComplete="tel"
-              style={{ flex: 1 }}
-            />
-            <button
-              type="button"
-              className={`identity-verify-btn${phoneVerified ? ' identity-verify-btn--verified' : ''}`}
-              onClick={handleVerifyPhone}
-              disabled={phoneVerified}
-              style={{ flexShrink: 0 }}
-            >
-              {phoneVerified ? (
-                <>
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M2 7l3.5 3.5L12 3" />
-                  </svg>
-                  Verified
-                </>
-              ) : (
-                <>
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 2l3 3-3 3" />
-                    <path d="M12 5H6a3 3 0 0 0 0 6h1" />
-                  </svg>
-                  Telegram
-                </>
-              )}
-            </button>
-          </div>
+          <label className="identity-field__label">Mobile Number</label>
+          <button
+            type="button"
+            className={`identity-verify-btn${phoneVerified ? ' identity-verify-btn--verified' : ''}`}
+            onClick={handleVerifyPhone}
+            disabled={phoneVerified}
+          >
+            {phoneVerified ? (
+              <>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M2 7l3.5 3.5L12 3" />
+                </svg>
+                {phoneNumber || 'Verified'}
+              </>
+            ) : (
+              <>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 2l3 3-3 3" />
+                  <path d="M12 5H6a3 3 0 0 0 0 6h1" />
+                </svg>
+                Verify via Telegram
+              </>
+            )}
+          </button>
         </div>
         <div className="identity-field">
           <label className="identity-field__label" htmlFor="id-birthday">Birthday</label>
