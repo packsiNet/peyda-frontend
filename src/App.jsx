@@ -1768,30 +1768,40 @@ function DatePickerField({ id, value, onChange }) {
   );
 }
 
-function IdentityContent({ onDone, onSave }) {
+function IdentityContent({ profile, onDone, onSave }) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [birthDay, setBirthDay] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
   const [docPhoto, setDocPhoto] = useState(null);
   const [selfiePhoto, setSelfiePhoto] = useState(null);
-  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [phoneVerified, setPhoneVerified] = useState(profile?.phoneVerified ?? false);
+  const [phoneNumber, setPhoneNumber] = useState(profile?.phoneNumber ?? '');
+  const [verifyingPhone, setVerifyingPhone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const canSubmit = firstName.trim() && lastName.trim() && birthDay && phoneVerified && docPhoto && selfiePhoto && !submitting;
 
-  function handleVerifyPhone() {
+  async function handleVerifyPhone() {
     const tgApp = window.Telegram?.WebApp;
-    if (tgApp?.requestContact) {
-      tgApp.requestContact((shared) => {
-        if (shared) {
-          setPhoneVerified(true);
-          if (shared?.phone_number) setPhoneNumber(shared.phone_number);
-        }
-      });
-    } else {
+    if (!tgApp?.requestContact) {
       setPhoneVerified(true);
+      return;
     }
+    setVerifyingPhone(true);
+    tgApp.requestContact(async (success, result) => {
+      if (!success) { setVerifyingPhone(false); return; }
+      const raw = result?.contact?.phone_number ?? result?.phone_number ?? '';
+      const normalized = raw.startsWith('+') ? raw : `+${raw}`;
+      try {
+        await usersApi.verifyPhone(normalized);
+        setPhoneNumber(normalized);
+        setPhoneVerified(true);
+      } catch {
+        // error shown via notification bus
+      } finally {
+        setVerifyingPhone(false);
+      }
+    });
   }
 
   async function handleSubmit(e) {
@@ -1802,7 +1812,6 @@ function IdentityContent({ onDone, onSave }) {
       const formData = new FormData();
       formData.append('firstName', firstName);
       formData.append('lastName', lastName);
-      formData.append('phoneNumber', phoneNumber);
       formData.append('dateOfBirth', birthDay);
       if (selfiePhoto?.blob) formData.append('selfieImage', selfiePhoto.blob, 'selfie.jpg');
       if (docPhoto?.blob)    formData.append('documentImage', docPhoto.blob, 'document.jpg');
@@ -1850,7 +1859,7 @@ function IdentityContent({ onDone, onSave }) {
             type="button"
             className={`identity-verify-btn${phoneVerified ? ' identity-verify-btn--verified' : ''}`}
             onClick={handleVerifyPhone}
-            disabled={phoneVerified}
+            disabled={phoneVerified || verifyingPhone}
           >
             {phoneVerified ? (
               <>
@@ -1859,6 +1868,8 @@ function IdentityContent({ onDone, onSave }) {
                 </svg>
                 {phoneNumber || 'Verified'}
               </>
+            ) : verifyingPhone ? (
+              'Verifying…'
             ) : (
               <>
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -2415,6 +2426,7 @@ export default function App() {
             lastName:      userData.lastName,
             kycStatus:     userData.kycStatus,
             phoneVerified: userData.phoneVerified ?? false,
+            phoneNumber:   userData.phoneNumber   ?? '',
             selfiePhoto:   userData.selfieImageUrl   ?? null,
             docPhoto:      userData.documentImageUrl ?? null,
           });
@@ -2608,6 +2620,7 @@ export default function App() {
 
       {activePage === 'identity' && (
         <IdentityContent
+          profile={userProfile}
           onDone={handleNavigateHome}
           onSave={handleIdentitySave}
         />
