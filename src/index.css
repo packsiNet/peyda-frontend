@@ -3013,6 +3013,51 @@ button { font-family: inherit; }
   cursor: not-allowed;
 }
 
+.kyc-status-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 200px;
+}
+
+.kyc-status-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--banner-border);
+  background: var(--banner-bg);
+  margin: 4px 0 8px;
+}
+
+.kyc-status-banner__icon {
+  color: var(--banner-color);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.kyc-status-banner__title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--banner-color);
+  margin: 0 0 3px;
+}
+
+.kyc-status-banner__msg {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.identity-section--locked {
+  opacity: 0.5;
+  pointer-events: none;
+  user-select: none;
+}
+
 .kyc-loading-overlay {
   position: fixed;
   inset: 0;

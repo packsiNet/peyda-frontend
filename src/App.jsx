@@ -1768,6 +1768,50 @@ function DatePickerField({ id, value, onChange }) {
   );
 }
 
+const KYC_STATUS = { PENDING: 0, APPROVED: 1, REJECTED: 2 };
+
+const KYC_STATUS_BANNER = {
+  [KYC_STATUS.PENDING]: {
+    color: 'var(--amber-deep)',
+    bg: 'rgba(245,145,72,0.10)',
+    border: 'rgba(245,145,72,0.30)',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="11" cy="11" r="9" />
+        <path d="M11 7v4.5l3 1.5" />
+      </svg>
+    ),
+    title: 'Verification Under Review',
+    message: (displayName) => `Your identity verification is currently "${displayName}". Please wait while we review your documents.`,
+  },
+  [KYC_STATUS.APPROVED]: {
+    color: 'var(--leaf-deep)',
+    bg: 'rgba(79,125,82,0.10)',
+    border: 'rgba(79,125,82,0.30)',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="11" cy="11" r="9" />
+        <path d="M7 11l3 3 5-5" />
+      </svg>
+    ),
+    title: 'Congratulations!',
+    message: () => 'Your identity has been successfully verified.',
+  },
+  [KYC_STATUS.REJECTED]: {
+    color: 'var(--rose-deep)',
+    bg: 'rgba(185,74,74,0.10)',
+    border: 'rgba(185,74,74,0.30)',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="11" cy="11" r="9" />
+        <path d="M8 8l6 6M14 8l-6 6" />
+      </svg>
+    ),
+    title: 'Verification Rejected',
+    message: () => 'Your identity was not verified. Please resubmit with correct information and valid documents.',
+  },
+};
+
 function IdentityContent({ profile, onDone, onSave }) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -1778,8 +1822,18 @@ function IdentityContent({ profile, onDone, onSave }) {
   const [phoneNumber, setPhoneNumber] = useState(profile?.phoneNumber ?? '');
   const [verifyingPhone, setVerifyingPhone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [kycInfo, setKycInfo] = useState(null);
+  const [kycLoading, setKycLoading] = useState(true);
 
-  const canSubmit = firstName.trim() && lastName.trim() && birthDay && phoneVerified && docPhoto && selfiePhoto && !submitting;
+  useEffect(() => {
+    usersApi.getKycStatus()
+      .then((res) => setKycInfo(res))
+      .catch(() => setKycInfo(null))
+      .finally(() => setKycLoading(false));
+  }, []);
+
+  const isLocked = kycInfo?.status === KYC_STATUS.PENDING || kycInfo?.status === KYC_STATUS.APPROVED;
+  const canSubmit = !isLocked && firstName.trim() && lastName.trim() && birthDay && phoneVerified && docPhoto && selfiePhoto && !submitting;
 
   async function handleVerifyPhone() {
     const tgApp = window.Telegram?.WebApp;
@@ -1828,9 +1882,35 @@ function IdentityContent({ profile, onDone, onSave }) {
     }
   }
 
+  if (kycLoading) {
+    return (
+      <div className="page-scroll kyc-status-loading">
+        <div className="kyc-loading-spinner">
+          <svg width="40" height="40" viewBox="0 0 52 52" fill="none">
+            <circle cx="26" cy="26" r="22" stroke="var(--amber)" strokeOpacity="0.15" strokeWidth="4" />
+            <path d="M26 4a22 22 0 0 1 22 22" stroke="var(--amber-deep)" strokeWidth="4" strokeLinecap="round" />
+          </svg>
+        </div>
+      </div>
+    );
+  }
+
+  const banner = kycInfo != null ? KYC_STATUS_BANNER[kycInfo.status] : null;
+
   return (
     <form className="page-scroll" onSubmit={handleSubmit}>
-      <div className="identity-section">
+
+      {banner && (
+        <div className="kyc-status-banner" style={{ '--banner-color': banner.color, '--banner-bg': banner.bg, '--banner-border': banner.border }}>
+          <span className="kyc-status-banner__icon">{banner.icon}</span>
+          <div>
+            <p className="kyc-status-banner__title">{banner.title}</p>
+            <p className="kyc-status-banner__msg">{banner.message(kycInfo.displayName)}</p>
+          </div>
+        </div>
+      )}
+
+      <div className={`identity-section${isLocked ? ' identity-section--locked' : ''}`}>
         <p className="identity-section__label">Personal Info</p>
         <div className="identity-field">
           <label className="identity-field__label" htmlFor="id-firstname">First Name</label>
@@ -1842,6 +1922,7 @@ function IdentityContent({ profile, onDone, onSave }) {
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
             autoComplete="given-name"
+            disabled={isLocked}
           />
         </div>
         <div className="identity-field">
@@ -1854,6 +1935,7 @@ function IdentityContent({ profile, onDone, onSave }) {
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
             autoComplete="family-name"
+            disabled={isLocked}
           />
         </div>
         <div className="identity-field">
@@ -1862,7 +1944,7 @@ function IdentityContent({ profile, onDone, onSave }) {
             type="button"
             className={`identity-verify-btn${phoneVerified ? ' identity-verify-btn--verified' : ''}`}
             onClick={handleVerifyPhone}
-            disabled={phoneVerified || verifyingPhone}
+            disabled={isLocked || phoneVerified || verifyingPhone}
           >
             {phoneVerified ? (
               <>
@@ -1886,18 +1968,19 @@ function IdentityContent({ profile, onDone, onSave }) {
         </div>
         <div className="identity-field">
           <label className="identity-field__label" htmlFor="id-birthday">Birthday</label>
-          <DatePickerField id="id-birthday" value={birthDay} onChange={setBirthDay} />
+          <DatePickerField id="id-birthday" value={birthDay} onChange={setBirthDay} disabled={isLocked} />
         </div>
       </div>
 
-      <div className="identity-section">
+      <div className={`identity-section${isLocked ? ' identity-section--locked' : ''}`}>
         <p className="identity-section__label">Photo Verification</p>
         <div className="id-cameras">
           <CameraCapture
             label="Document Photo"
             facingMode="environment"
             preview={docPhoto}
-            onCapture={setDocPhoto}
+            onCapture={isLocked ? undefined : setDocPhoto}
+            disabled={isLocked}
             icon={
               <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="8" width="26" height="18" rx="3" />
@@ -1911,7 +1994,8 @@ function IdentityContent({ profile, onDone, onSave }) {
             label="Selfie Photo"
             facingMode="user"
             preview={selfiePhoto}
-            onCapture={setSelfiePhoto}
+            onCapture={isLocked ? undefined : setSelfiePhoto}
+            disabled={isLocked}
             icon={
               <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="16" cy="14" r="5" />
@@ -1924,9 +2008,11 @@ function IdentityContent({ profile, onDone, onSave }) {
         </div>
       </div>
 
-      <button type="submit" className="identity-submit" disabled={!canSubmit}>
-        Submit Verification
-      </button>
+      {!isLocked && (
+        <button type="submit" className="identity-submit" disabled={!canSubmit}>
+          Submit Verification
+        </button>
+      )}
 
       {submitting && (
         <div className="kyc-loading-overlay">
