@@ -1792,6 +1792,7 @@ function IdentityContent({ profile, onDone, onSave }) {
       if (!success) { setVerifyingPhone(false); return; }
       const raw = result?.contact?.phone_number ?? result?.phone_number ?? '';
       const normalized = raw.startsWith('+') ? raw : `+${raw}`;
+      alert(`Sending to POST /api/users/me/phone:\n${JSON.stringify({ phoneNumber: normalized }, null, 2)}\n\nfull result:\n${JSON.stringify(result, null, 2)}`);
       try {
         await usersApi.verifyPhone(normalized);
         setPhoneNumber(normalized);
