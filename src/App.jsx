@@ -1925,8 +1925,23 @@ function IdentityContent({ profile, onDone, onSave }) {
       </div>
 
       <button type="submit" className="identity-submit" disabled={!canSubmit}>
-        {submitting ? 'Submitting…' : 'Submit Verification'}
+        Submit Verification
       </button>
+
+      {submitting && (
+        <div className="kyc-loading-overlay">
+          <div className="kyc-loading-card">
+            <div className="kyc-loading-spinner">
+              <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
+                <circle cx="26" cy="26" r="22" stroke="var(--amber)" strokeOpacity="0.15" strokeWidth="4" />
+                <path d="M26 4a22 22 0 0 1 22 22" stroke="var(--amber-deep)" strokeWidth="4" strokeLinecap="round" />
+              </svg>
+            </div>
+            <p className="kyc-loading-title">Submitting Verification</p>
+            <p className="kyc-loading-sub">Please wait while we process your documents…</p>
+          </div>
+        </div>
+      )}
     </form>
   );
 }
