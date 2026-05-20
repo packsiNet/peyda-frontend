@@ -1386,6 +1386,9 @@ function AppShell({ header, children, activePage, onNavigate, onProfile, onExcha
   const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   useEffect(() => {
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1;
+    if (!isMobile) return;
+
     const INPUT_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
 
     function onFocusIn(e) {
