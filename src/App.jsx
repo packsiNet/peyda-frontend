@@ -1383,6 +1383,18 @@ const AppTabBar = memo(function AppTabBar({ activePage, onNavigate, onProfile, o
 });
 
 function AppShell({ header, children, activePage, onNavigate, onProfile, onExchange }) {
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    function onResize() {
+      setKeyboardVisible(vv.height < window.innerHeight * 0.75);
+    }
+    vv.addEventListener('resize', onResize);
+    return () => vv.removeEventListener('resize', onResize);
+  }, []);
+
   return (
     <>
       <BgOrbs />
@@ -1391,12 +1403,14 @@ function AppShell({ header, children, activePage, onNavigate, onProfile, onExcha
         <div className="app-content">
           {children}
         </div>
-        <AppTabBar
-          activePage={activePage}
-          onNavigate={onNavigate}
-          onProfile={onProfile}
-          onExchange={onExchange}
-        />
+        {!keyboardVisible && (
+          <AppTabBar
+            activePage={activePage}
+            onNavigate={onNavigate}
+            onProfile={onProfile}
+            onExchange={onExchange}
+          />
+        )}
       </div>
     </>
   );
