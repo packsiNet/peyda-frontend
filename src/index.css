@@ -2122,6 +2122,64 @@ body::after {
   font-size: 13px;
 }
 
+/* ── Foreign Account Accordion ──────────────────── */
+.fac {
+  border: 1px solid var(--glass-edge-2);
+  border-radius: 12px;
+  margin-bottom: 8px;
+  overflow: hidden;
+  background: var(--glass-tint);
+}
+
+.fac__header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  background: rgba(245, 158, 11, 0.06);
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
+}
+
+.fac__header:active {
+  background: rgba(245, 158, 11, 0.11);
+}
+
+.fac--open .fac__header {
+  background: rgba(245, 158, 11, 0.09);
+}
+
+.fac__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.fac__chevron {
+  color: var(--ink-mute);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.fac--open .fac__chevron {
+  transform: rotate(180deg);
+}
+
+.fac__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 14px 14px;
+  border-top: 1px solid var(--glass-edge-2);
+}
+
 /* ── Exchange Modal ─────────────────────────────── */
 .exchange-modal {
   max-height: 90dvh;
@@ -2445,7 +2503,6 @@ body::after {
 .method-chip {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
   height: 38px;
   padding: 0 16px;
   border-radius: var(--radius-pill);

@@ -534,6 +534,34 @@ const PAYMENT_METHOD_ENUM = { Revolut: 0, Zelle: 1, PayPal: 2, SEPA: 3, Wire: 4 
 const BONBAST_RATE = 160_000;
 const URGENT_RATE  = 150_000;
 
+const FOREIGN_ACCOUNT_FIELDS = {
+  Revolut: [
+    { id: 'fullName', label: 'Full Name',         placeholder: 'John Doe',              type: 'text'  },
+    { id: 'username', label: 'Username / Phone',  placeholder: '@username or +1234…',   type: 'text'  },
+    { id: 'email',    label: 'Email',             placeholder: 'john@example.com',      type: 'email', optional: true },
+  ],
+  Zelle: [
+    { id: 'fullName',     label: 'Full Name',     placeholder: 'John Doe',              type: 'text' },
+    { id: 'emailOrPhone', label: 'Email or Phone',placeholder: 'john@email.com or +1…', type: 'text' },
+  ],
+  PayPal: [
+    { id: 'fullName', label: 'Full Name',         placeholder: 'John Doe',              type: 'text'  },
+    { id: 'email',    label: 'PayPal Email',      placeholder: 'john@example.com',      type: 'email' },
+  ],
+  SEPA: [
+    { id: 'fullName',  label: 'Full Name',        placeholder: 'John Doe',              type: 'text' },
+    { id: 'iban',      label: 'IBAN',             placeholder: 'GB29NWBK60161331926819',type: 'text' },
+    { id: 'bic',       label: 'BIC / SWIFT',      placeholder: 'NWBKGB2L',             type: 'text' },
+    { id: 'bankName',  label: 'Bank Name',        placeholder: 'Barclays Bank',         type: 'text' },
+  ],
+  Wire: [
+    { id: 'fullName',    label: 'Full Name',      placeholder: 'John Doe',              type: 'text' },
+    { id: 'accountNum',  label: 'Account Number', placeholder: '123456789',             type: 'text' },
+    { id: 'swift',       label: 'SWIFT / BIC',    placeholder: 'NWBKGB2L',             type: 'text' },
+    { id: 'bankName',    label: 'Bank Name',      placeholder: 'Chase Bank',            type: 'text' },
+    { id: 'bankAddress', label: 'Bank Address',   placeholder: '270 Park Ave, NY',      type: 'text', optional: true },
+  ],
+};
 
 function prefixPadding(symbol) {
   if (symbol.length >= 3) return '52px';
@@ -553,9 +581,13 @@ function ExchangeModal({ onClose, onCreated }) {
   const [selectedRate, setSelectedRate] = useState(null);
   const [showCustomInput, setShowCustomInput] = useState(false);
 
-  // Step 2 state
+  // Step 2 state — send direction (Iranian receiver)
   const [showNewReceiverForm, setShowNewReceiverForm] = useState(false);
   const [selectedReceiverId, setSelectedReceiverId] = useState(null);
+
+  // Step 2 state — receive direction (foreign accounts)
+  const [foreignAccounts, setForeignAccounts] = useState({});
+  const [openAccordions, setOpenAccordions] = useState(new Set());
   const [rcvFirstName, setRcvFirstName] = useState('');
   const [rcvLastName, setRcvLastName] = useState('');
   const [rcvNationalId, setRcvNationalId] = useState('');
@@ -643,9 +675,24 @@ function ExchangeModal({ onClose, onCreated }) {
   };
 
   const step1Valid = !!amount && methods.length > 0;
-  const step2Valid = (showNewReceiverForm
-    ? !!(rcvFirstName.trim() && rcvLastName.trim() && rcvNationalId.trim() && rcvMobile.trim() && rcvIban.trim())
-    : !!selectedReceiverId) && !submitting;
+
+  const foreignValid = methods.every(m => {
+    const fields = FOREIGN_ACCOUNT_FIELDS[m] ?? [];
+    const acc = foreignAccounts[m] ?? {};
+    return fields.filter(f => !f.optional).every(f => acc[f.id]?.trim());
+  });
+
+  const step2Valid = direction === 'receive'
+    ? foreignValid && !submitting
+    : (showNewReceiverForm
+        ? !!(rcvFirstName.trim() && rcvLastName.trim() && rcvNationalId.trim() && rcvMobile.trim() && rcvIban.trim())
+        : !!selectedReceiverId) && !submitting;
+
+  const setForeignField = (method, fieldId, value) =>
+    setForeignAccounts(prev => ({ ...prev, [method]: { ...(prev[method] ?? {}), [fieldId]: value } }));
+
+  const toggleAccordion = (method) =>
+    setOpenAccordions(prev => { const s = new Set(prev); s.has(method) ? s.delete(method) : s.add(method); return s; });
 
   const amtNum        = previewData?.amount           ?? (parseFloat(amount) || 0);
   const exchangeAmt   = previewData ? (previewData.amount * (previewData.rateValue || 1)) : 0;
@@ -679,6 +726,7 @@ function ExchangeModal({ onClose, onCreated }) {
       }
     }
 
+    setOpenAccordions(new Set());
     setStep(2);
   };
 
@@ -707,7 +755,10 @@ function ExchangeModal({ onClose, onCreated }) {
         rateType: RATE_TYPE_ENUM[rateTypeStr],
         customRate: rateTypeStr === 'Custom' ? parseFloat(proposedAmount) || null : null,
         paymentMethods: methods.map((m) => PAYMENT_METHOD_ENUM[m]),
-        receiverId,
+        ...(direction === 'send'
+          ? { receiverId }
+          : { foreignAccounts: methods.map(m => ({ method: PAYMENT_METHOD_ENUM[m], ...foreignAccounts[m] })) }
+        ),
       };
       await requestsApi.create(createPayload);
       onCreated?.();
@@ -807,11 +858,6 @@ function ExchangeModal({ onClose, onCreated }) {
                       onClick={() => toggleMethod(m)}
                       aria-pressed={active}
                     >
-                      {active && (
-                        <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M2 5.5l2.5 2.5L9 3" />
-                        </svg>
-                      )}
                       {m}
                     </button>
                   );
@@ -930,8 +976,14 @@ function ExchangeModal({ onClose, onCreated }) {
           </>
         ) : (
           <>
-            <div className="sheet__title">Receiver Information</div>
-            <p className="sheet__sub">Enter the recipient's details to complete the request</p>
+            <div className="sheet__title">
+              {direction === 'receive' ? 'Your Account Details' : 'Receiver Information'}
+            </div>
+            <p className="sheet__sub">
+              {direction === 'receive'
+                ? 'Enter your foreign account details for each payment method'
+                : 'Enter the recipient\'s details to complete the request'}
+            </p>
 
             <div className="exchange-summary">
               <div className="exchange-summary__row">
@@ -952,7 +1004,52 @@ function ExchangeModal({ onClose, onCreated }) {
               </div>
             </div>
 
-            {showNewReceiverForm ? (
+            {direction === 'receive' ? (
+              <div className="exchange-modal__section">
+                {methods.map(method => {
+                  const fields = FOREIGN_ACCOUNT_FIELDS[method] ?? [];
+                  const acc = foreignAccounts[method] ?? {};
+                  const isOpen = openAccordions.has(method);
+                  const filled = fields.filter(f => !f.optional).every(f => acc[f.id]?.trim());
+                  return (
+                    <div key={method} className={`fac${isOpen ? ' fac--open' : ''}`}>
+                      <button type="button" className="fac__header" onClick={() => toggleAccordion(method)}>
+                        <span className="fac__title">
+                          {filled && (
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="var(--leaf-deep)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M2 6l2.5 2.5L10 3" />
+                            </svg>
+                          )}
+                          {method}
+                        </span>
+                        <svg className="fac__chevron" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 5l4 4 4-4" />
+                        </svg>
+                      </button>
+                      {isOpen && (
+                        <div className="fac__body">
+                          {fields.map(f => (
+                            <div key={f.id} className="receiver-form__field">
+                              <label className="input-label">
+                                {f.label}
+                                {f.optional && <span className="input-label__hint">optional</span>}
+                              </label>
+                              <input
+                                className="input"
+                                type={f.type}
+                                placeholder={f.placeholder}
+                                value={acc[f.id] ?? ''}
+                                onChange={e => setForeignField(method, f.id, e.target.value)}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : showNewReceiverForm ? (
               <div className="exchange-modal__section">
                 <button
                   type="button"
