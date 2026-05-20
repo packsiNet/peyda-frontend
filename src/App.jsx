@@ -189,14 +189,15 @@ const METHOD_META = {
 const TxTile = memo(function TxTile({ item, type, onTap }) {
   const isReceived = type === 'received';
   const sign = isReceived ? '+' : '−';
-  const meta = METHOD_META[item.method] || { country: 'Global' };
+  const firstMethod = item.methods[0] ?? null;
+  const meta = (firstMethod && METHOD_META[firstMethod]) || { country: 'Global' };
 
   return (
     <article
       role="button"
       tabIndex={0}
       className={`tx-tile ${isReceived ? 'tx-tile--received' : 'tx-tile--sent'}`}
-      aria-label={`${type} ${sign}€${item.amount} ${item.name} via ${item.method}`}
+      aria-label={`${type} ${sign}€${item.amount} ${item.name}`}
       onClick={() => onTap(item, type)}
       onKeyDown={(event) => (event.key === 'Enter' || event.key === ' ') && onTap(item, type)}
     >
@@ -278,19 +279,23 @@ const TxListItem = memo(function TxListItem({ item, type, onTap }) {
   const isReceived = type === 'received';
   const sign = isReceived ? '+' : '−';
   const amountColor = isReceived ? 'var(--leaf-deep)' : 'var(--amber-deep)';
-  const initials = item.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+  const methodsLabel = item.methods.length ? item.methods.join(' · ') : '—';
 
   return (
     <article
       role="button"
       tabIndex={0}
       className={`match-card ${isReceived ? 'match-card--received' : 'match-card--sent'}`}
-      aria-label={`${type} ${sign}€${item.amount} ${item.name} via ${item.method}`}
+      aria-label={`${type} ${sign}€${item.amount} ${item.name}`}
       onClick={() => onTap(item, type)}
       onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onTap(item, type)}
     >
       <div className="match-card__top">
-        <div className="match-card__avatar" aria-hidden="true">{initials}</div>
+        <div className="match-card__avatar" aria-hidden="true">
+          {item.avatarPhoto
+            ? <img src={item.avatarPhoto} alt={item.name} className="match-card__avatar-img" />
+            : item.avatarInitials}
+        </div>
 
         <div className="match-card__info">
           <div className="match-card__name-row">
@@ -305,9 +310,9 @@ const TxListItem = memo(function TxListItem({ item, type, onTap }) {
             )}
           </div>
           <div className="match-card__meta">
-            <span className="match-card__level">Lv {item.level} · {LEVEL_LABELS[item.level]}</span>
-            <span className="match-card__sep" aria-hidden="true" />
-            <span className="match-card__method">{item.method}</span>
+            {item.tierName && <span className="match-card__level">{item.tierName}</span>}
+            {item.tierName && <span className="match-card__sep" aria-hidden="true" />}
+            <span className="match-card__method">{methodsLabel}</span>
             <span className="match-card__sep" aria-hidden="true" />
             <span className="match-card__date">{fmtDate(item.date)}</span>
           </div>
@@ -331,11 +336,24 @@ const TxListItem = memo(function TxListItem({ item, type, onTap }) {
   );
 });
 
-const TransactionListPage = memo(function TransactionListPage({ data, type, sort, layout, onSort, onLayoutToggle, onTap }) {
+const TransactionListPage = memo(function TransactionListPage({ data, type, sort, layout, onSort, onLayoutToggle, onTap, loading }) {
   const sorted = useMemo(() => {
     if (!sort) return data;
     return [...data].sort((a, b) => sort === 'highest' ? b.amount - a.amount : a.amount - b.amount);
   }, [data, sort]);
+
+  if (loading) {
+    return (
+      <div className="page-scroll kyc-status-loading">
+        <div className="kyc-loading-spinner">
+          <svg width="40" height="40" viewBox="0 0 52 52" fill="none">
+            <circle cx="26" cy="26" r="22" stroke="var(--amber)" strokeOpacity="0.15" strokeWidth="4" />
+            <path d="M26 4a22 22 0 0 1 22 22" stroke="var(--amber-deep)" strokeWidth="4" strokeLinecap="round" />
+          </svg>
+        </div>
+      </div>
+    );
+  }
 
   if (data.length === 0) {
     return (
@@ -395,7 +413,7 @@ function DetailSheet({ item, type, onClose }) {
       <div className="sheet" onClick={(event) => event.stopPropagation()}>
         <div className="sheet__handle" />
         <div className="sheet__title">{isReceived ? 'Received' : 'Sent'}</div>
-        <p className="sheet__sub">{isReceived ? `From ${item.name}` : `To ${item.name}`} · via {item.method}</p>
+        <p className="sheet__sub">{isReceived ? `From ${item.name}` : `To ${item.name}`}</p>
 
         <div className="detail-row">
           <span className="detail-row__label">Amount</span>
@@ -404,8 +422,8 @@ function DetailSheet({ item, type, onClose }) {
           </span>
         </div>
         <div className="detail-row">
-          <span className="detail-row__label">Method</span>
-          <span className="detail-row__value">{item.method}</span>
+          <span className="detail-row__label">Methods</span>
+          <span className="detail-row__value">{item.methods.length ? item.methods.join(', ') : '—'}</span>
         </div>
         {item.reference && (
           <div className="detail-row">
@@ -2491,16 +2509,19 @@ const HomeSearch = memo(function HomeSearch({ onMatchTap }) {
 
 function mapRequest(r) {
   return {
-    id:        r.id,
-    name:      r.counterpartDisplayName ?? '—',
-    method:    r.paymentMethod          ?? '—',
-    amount:    r.amount,
-    level:     r.counterpartLevel       ?? 0,
-    trusted:   r.counterpartIsTrusted   ?? false,
-    rate:      r.rateValue,
-    date:      r.settledAt ?? r.createdAt,
-    status:    r.status,
-    reference: r.referenceCode ?? null,
+    id:             r.id,
+    name:           r.counterpartDisplayName   ?? '—',
+    avatarInitials: r.counterpartAvatarInitials ?? '??',
+    avatarPhoto:    r.counterpartProfilePhotoUrl ?? null,
+    methods:        r.paymentMethods            ?? [],
+    amount:         r.amount,
+    tierName:       r.counterpartTierName       ?? '',
+    tierOrder:      r.counterpartTierOrder      ?? 0,
+    trusted:        r.counterpartIsTrusted      ?? false,
+    rate:           r.rateValue,
+    date:           r.settledAt ?? r.createdAt,
+    status:         r.status,
+    reference:      r.referenceCode ?? null,
   };
 }
 
@@ -2521,6 +2542,8 @@ export default function App() {
   const [termsAccepted, setTermsAccepted] = useState(() => localStorage.getItem(TERMS_KEY) === 'true');
   const [sentRequests, setSentRequests] = useState([]);
   const [receivedRequests, setReceivedRequests] = useState([]);
+  const [sentLoading, setSentLoading] = useState(false);
+  const [receivedLoading, setReceivedLoading] = useState(false);
   const [myMatches, setMyMatches] = useState([]);
 
   const loadMatches = useCallback(() => {
@@ -2599,15 +2622,19 @@ export default function App() {
   }, []);
 
   const loadSentRequests = useCallback(() => {
+    setSentLoading(true);
     requestsApi.getAll('Send')
       .then((data) => setSentRequests((data ?? []).map(mapRequest)))
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setSentLoading(false));
   }, []);
 
   const loadReceivedRequests = useCallback(() => {
+    setReceivedLoading(true);
     requestsApi.getAll('Receive')
       .then((data) => setReceivedRequests((data ?? []).map(mapRequest)))
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setReceivedLoading(false));
   }, []);
 
   // Load data when tabs are activated
@@ -2787,6 +2814,7 @@ export default function App() {
           onSort={handleSentSort}
           onLayoutToggle={handleSentLayoutToggle}
           onTap={handleTap}
+          loading={sentLoading}
         />
       )}
       {activePage === 'received' && (
@@ -2798,6 +2826,7 @@ export default function App() {
           onSort={handleReceivedSort}
           onLayoutToggle={handleReceivedLayoutToggle}
           onTap={handleTap}
+          loading={receivedLoading}
         />
       )}
 
