@@ -224,6 +224,56 @@ body::after {
 }
 .page-scroll::-webkit-scrollbar { display: none; }
 
+/* ── Empty state (no data) ───────────────────────────────────────────────── */
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px 32px;
+  text-align: center;
+}
+
+.empty-state__icon {
+  color: var(--ink-dim);
+  opacity: 0.55;
+  margin-bottom: 4px;
+  flex-shrink: 0;
+}
+
+.empty-state__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  background: var(--glass-tint);
+  border: 1px solid var(--glass-edge-2);
+  border-radius: 20px;
+  padding: 32px 28px 28px;
+  max-width: 280px;
+  width: 100%;
+  box-shadow: 0 2px 16px var(--glass-shade), 0 1px 0 var(--glass-edge) inset;
+}
+
+.empty-state__text {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.2px;
+  margin: 0;
+}
+
+.empty-state__sub {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-mute);
+  line-height: 1.6;
+  margin: 0;
+  max-width: 200px;
+}
+
 /* Placeholder page for wallet/markets */
 .placeholder-page {
   flex: 1;
@@ -3071,8 +3121,8 @@ button { font-family: inherit; }
 }
 
 .kyc-loading-card {
-  background: var(--surface);
-  border: 1px solid rgba(255,255,255,0.07);
+  background: var(--bg-card, #1a2030);
+  border: 1px solid var(--glass-edge-2, rgba(255,255,255,0.10));
   border-radius: 24px;
   padding: 40px 32px 36px;
   display: flex;

@@ -339,12 +339,14 @@ const TransactionListPage = memo(function TransactionListPage({ data, type, sort
   if (data.length === 0) {
     return (
       <div className="empty-state" role="status">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className="empty-state__icon" aria-hidden="true">
-          <rect x="2" y="5" width="20" height="14" rx="2" />
-          <line x1="2" y1="10" x2="22" y2="10" />
-        </svg>
-        <p className="empty-state__text">No {type} transactions yet</p>
-        <p className="empty-state__sub">Your completed transactions will appear here.</p>
+        <div className="empty-state__card">
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className="empty-state__icon" aria-hidden="true">
+            <rect x="2" y="5" width="20" height="14" rx="2" />
+            <line x1="2" y1="10" x2="22" y2="10" />
+          </svg>
+          <p className="empty-state__text">No {type} transactions yet</p>
+          <p className="empty-state__sub">Your completed transactions will appear here.</p>
+        </div>
       </div>
     );
   }
@@ -510,7 +512,7 @@ function prefixPadding(symbol) {
   return '34px';
 }
 
-function ExchangeModal({ onClose }) {
+function ExchangeModal({ onClose, onCreated }) {
   const [step, setStep] = useState(1);
 
   // Step 1 state
@@ -678,9 +680,8 @@ function ExchangeModal({ onClose }) {
         paymentMethods: methods.map((m) => PAYMENT_METHOD_ENUM[m]),
         receiverId,
       };
-      alert(`POST /api/Requests payload:\n${JSON.stringify(createPayload, null, 2)}`);
       await requestsApi.create(createPayload);
-      onClose();
+      onCreated?.();
     } catch {
       // error shown via notification bus
     } finally {
@@ -1784,8 +1785,8 @@ const KYC_STATUS_BANNER = {
         <path d="M11 7v4.5l3 1.5" />
       </svg>
     ),
-    title: 'Verification Under Review',
-    message: (displayName) => `Your identity verification is currently "${displayName}". Please wait while we review your documents.`,
+    title: 'Under Review',
+    message: 'Your identity verification is under review. Please wait while we process your documents.',
   },
   [KYC_STATUS.APPROVED]: {
     color: 'var(--leaf-deep)',
@@ -1797,8 +1798,8 @@ const KYC_STATUS_BANNER = {
         <path d="M7 11l3 3 5-5" />
       </svg>
     ),
-    title: 'Congratulations!',
-    message: () => 'Your identity has been successfully verified.',
+    title: 'Approved',
+    message: 'Your identity has been successfully verified and approved.',
   },
   [KYC_STATUS.REJECTED]: {
     color: 'var(--rose-deep)',
@@ -1810,8 +1811,8 @@ const KYC_STATUS_BANNER = {
         <path d="M8 8l6 6M14 8l-6 6" />
       </svg>
     ),
-    title: 'Verification Rejected',
-    message: () => 'Your identity was not verified. Please resubmit with correct information and valid documents.',
+    title: 'Rejected',
+    message: 'Your identity verification was rejected. Please resubmit with correct information and valid documents.',
   },
 };
 
@@ -1908,7 +1909,7 @@ function IdentityContent({ profile, onDone, onSave }) {
           <span className="kyc-status-banner__icon">{banner.icon}</span>
           <div>
             <p className="kyc-status-banner__title">{banner.title}</p>
-            <p className="kyc-status-banner__msg">{banner.message(kycInfo.displayName)}</p>
+            <p className="kyc-status-banner__msg">{banner.message}</p>
           </div>
         </div>
       )}
@@ -2264,12 +2265,14 @@ const MatchingPage = memo(function MatchingPage({ matches, onUploadScreenshot, o
   if (sends.length === 0 && receives.length === 0) {
     return (
       <div className="empty-state" role="status">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className="empty-state__icon" aria-hidden="true">
-          <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-          <path d="M15 5l4 4" />
-        </svg>
-        <p className="empty-state__text">No active matches</p>
-        <p className="empty-state__sub">Create an exchange request to get matched with another user.</p>
+        <div className="empty-state__card">
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className="empty-state__icon" aria-hidden="true">
+            <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+            <path d="M15 5l4 4" />
+          </svg>
+          <p className="empty-state__text">No active matches</p>
+          <p className="empty-state__sub">Create an exchange request to get matched with another user.</p>
+        </div>
       </div>
     );
   }
@@ -2455,6 +2458,21 @@ const HomeSearch = memo(function HomeSearch({ onMatchTap }) {
   );
 });
 
+function mapRequest(r) {
+  return {
+    id:        r.id,
+    name:      r.counterpartDisplayName ?? '—',
+    method:    r.paymentMethod          ?? '—',
+    amount:    r.amount,
+    level:     r.counterpartLevel       ?? 0,
+    trusted:   r.counterpartIsTrusted   ?? false,
+    rate:      r.rateValue,
+    date:      r.settledAt ?? r.createdAt,
+    status:    r.status,
+    reference: r.referenceCode ?? null,
+  };
+}
+
 export default function App() {
   const [activePage, setActivePage] = useState('home');
   const [detail, setDetail] = useState(null);
@@ -2549,37 +2567,24 @@ export default function App() {
     splash.then(init);
   }, []);
 
-  // Load sent/received requests when those tabs are activated
-  useEffect(() => {
-    function mapTx(r) {
-      return {
-        id:        r.id,
-        name:      r.counterpartDisplayName ?? '—',
-        method:    r.paymentMethod          ?? '—',
-        amount:    r.amount,
-        level:     r.counterpartLevel       ?? 0,
-        trusted:   r.counterpartIsTrusted   ?? false,
-        rate:      r.rateValue,
-        date:      r.settledAt ?? r.createdAt,
-        status:    r.status,
-        reference: r.referenceCode ?? null,
-      };
-    }
+  const loadSentRequests = useCallback(() => {
+    requestsApi.getAll('Send')
+      .then((data) => setSentRequests((data ?? []).map(mapRequest)))
+      .catch(() => {});
+  }, []);
 
-    if (activePage === 'sent') {
-      transactionsApi.getAll({ type: 'Send' })
-        .then((data) => setSentRequests((data ?? []).map(mapTx)))
-        .catch(() => {});
-    }
-    if (activePage === 'received') {
-      transactionsApi.getAll({ type: 'Receive' })
-        .then((data) => setReceivedRequests((data ?? []).map(mapTx)))
-        .catch(() => {});
-    }
-    if (activePage === 'matches') {
-      loadMatches();
-    }
-  }, [activePage]);
+  const loadReceivedRequests = useCallback(() => {
+    requestsApi.getAll('Receive')
+      .then((data) => setReceivedRequests((data ?? []).map(mapRequest)))
+      .catch(() => {});
+  }, []);
+
+  // Load data when tabs are activated
+  useEffect(() => {
+    if (activePage === 'sent')     loadSentRequests();
+    if (activePage === 'received') loadReceivedRequests();
+    if (activePage === 'matches')  loadMatches();
+  }, [activePage, loadSentRequests, loadReceivedRequests, loadMatches]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', THEMES[themeIdx]);
@@ -2655,6 +2660,11 @@ export default function App() {
   const handleProfileClose = useCallback(() => setShowProfile(false), []);
   const handleExchangeOpen = useCallback(() => setShowAdd(true), []);
   const handleExchangeClose = useCallback(() => setShowAdd(false), []);
+  const handleRequestCreated = useCallback(() => {
+    setShowAdd(false);
+    loadSentRequests();
+    loadReceivedRequests();
+  }, [loadSentRequests, loadReceivedRequests]);
   const handleDetailClose = useCallback(() => setDetail(null), []);
   const handleThemeToggle = useCallback(() => setThemeIdx(i => (i + 1) % THEMES.length), []);
   const handleSentLayoutToggle = useCallback(() => setSentLayout(m => m === 'tile' ? 'list' : 'tile'), []);
@@ -2778,7 +2788,7 @@ export default function App() {
           onConfirmed={handleMatchConfirmed}
         />
       )}
-      {showAdd && <ExchangeModal onClose={handleExchangeClose} />}
+      {showAdd && <ExchangeModal onClose={handleExchangeClose} onCreated={handleRequestCreated} />}
       {showProfile && (
         <ProfileModal
           onClose={handleProfileClose}
