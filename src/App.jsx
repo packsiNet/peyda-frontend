@@ -1386,13 +1386,26 @@ function AppShell({ header, children, activePage, onNavigate, onProfile, onExcha
   const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    function onResize() {
-      setKeyboardVisible(vv.height < window.innerHeight * 0.75);
+    const INPUT_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
+
+    function onFocusIn(e) {
+      if (INPUT_TAGS.has(e.target?.tagName)) setKeyboardVisible(true);
     }
-    vv.addEventListener('resize', onResize);
-    return () => vv.removeEventListener('resize', onResize);
+    function onFocusOut() {
+      // Delay so focus moving between two inputs doesn't flicker
+      setTimeout(() => {
+        if (!INPUT_TAGS.has(document.activeElement?.tagName)) {
+          setKeyboardVisible(false);
+        }
+      }, 100);
+    }
+
+    document.addEventListener('focusin', onFocusIn);
+    document.addEventListener('focusout', onFocusOut);
+    return () => {
+      document.removeEventListener('focusin', onFocusIn);
+      document.removeEventListener('focusout', onFocusOut);
+    };
   }, []);
 
   return (
