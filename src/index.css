@@ -1776,7 +1776,7 @@ body::after {
 .sheet-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 10;
+  z-index: 60;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -1786,6 +1786,12 @@ body::after {
     calc(12px + var(--tg-inset-right))
     calc(12px + var(--tg-inset-bottom))
     calc(12px + var(--tg-inset-left));
+  animation: backdrop-in 0.22s ease forwards;
+}
+
+@keyframes backdrop-in {
+  from { background: rgba(15,9,7,0); backdrop-filter: blur(0px); }
+  to   { background: rgba(15,9,7,0.25); backdrop-filter: blur(12px); }
 }
 
 .sheet {
@@ -1796,6 +1802,12 @@ body::after {
   box-shadow: 0 24px 70px rgba(120,70,40,0.22);
   border-radius: var(--radius-sheet);
   padding: 20px 20px 22px;
+  animation: sheet-slide-in 0.3s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+@keyframes sheet-slide-in {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
 }
 
 .sheet__handle {
@@ -2552,13 +2564,13 @@ button { font-family: inherit; }
 }
 
 .identity-verify-btn {
-  height: 46px;
+  height: 56px;
   width: 100%;
-  border-radius: 12px;
+  border-radius: 14px;
   border: 1.5px solid rgba(245, 145, 72, 0.35);
   background: rgba(245, 145, 72, 0.07);
   color: var(--amber-deep);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
