@@ -507,6 +507,11 @@ body::after {
   border: 1px solid rgba(79, 125, 82, 0.16);
 }
 
+.match-badge--pending {
+  background: rgba(245, 145, 72, 0.08);
+  border: 1px solid rgba(245, 145, 72, 0.16);
+}
+
 /* ── Match Card ──────────────────────────────────────────────────────────── */
 .match-card {
   background: var(--glass-tint);

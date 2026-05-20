@@ -209,7 +209,7 @@ const TxTile = memo(function TxTile({ item, type, onTap }) {
       </span>
 
       <div className="tx-tile__amount">
-        <span className="tx-tile__currency">€</span>
+        <span className="tx-tile__currency">{item.currencySymbol}</span>
         <span className="tx-tile__value">{item.amount.toLocaleString()}</span>
       </div>
 
@@ -320,7 +320,7 @@ const TxListItem = memo(function TxListItem({ item, type, onTap }) {
 
         <div className="match-card__right">
           <span className="match-card__amount" style={{ color: amountColor }}>
-            {sign}€{item.amount.toLocaleString()}
+            {sign}{item.currencySymbol}{item.amount.toLocaleString()}
           </span>
         </div>
       </div>
@@ -330,7 +330,15 @@ const TxListItem = memo(function TxListItem({ item, type, onTap }) {
           <span className="match-card__rate-label">Rate</span>
           <span className="match-card__rate">{item.rate.toLocaleString()} T</span>
         </div>
-        <span className="match-badge match-badge--done">Completed</span>
+        {(() => {
+          const s = TX_STATUS_DISPLAY[item.status];
+          const isDone = item.status === 3;
+          return (
+            <span className={`match-badge ${isDone ? 'match-badge--done' : 'match-badge--pending'}`} style={{ color: s?.color }}>
+              {s?.label ?? 'Unknown'}
+            </span>
+          );
+        })()}
       </div>
     </article>
   );
@@ -395,12 +403,14 @@ const TransactionListPage = memo(function TransactionListPage({ data, type, sort
 });
 
 const TX_STATUS_DISPLAY = {
-  Pending:            { label: 'Pending',         color: 'var(--amber-deep)' },
-  ScreenshotUploaded: { label: 'Payment Uploaded', color: 'var(--amber-deep)' },
-  Confirmed:          { label: 'Confirmed',        color: 'var(--leaf-deep)'  },
-  Settled:            { label: 'Completed',        color: 'var(--leaf-deep)'  },
-  Disputed:           { label: 'Disputed',         color: 'var(--rose-deep)'  },
+  0: { label: 'Pending',          color: 'var(--amber-deep)' },
+  1: { label: 'Payment Uploaded', color: 'var(--amber-deep)' },
+  2: { label: 'Confirmed',        color: 'var(--leaf-deep)'  },
+  3: { label: 'Completed',        color: 'var(--leaf-deep)'  },
+  4: { label: 'Disputed',         color: 'var(--rose-deep)'  },
 };
+
+const CURRENCY_SYMBOL = { 0: '€', 1: '$', 2: 'CA$' };
 
 function DetailSheet({ item, type, onClose }) {
   const isReceived = type === 'received';
@@ -418,7 +428,7 @@ function DetailSheet({ item, type, onClose }) {
         <div className="detail-row">
           <span className="detail-row__label">Amount</span>
           <span className="detail-row__value detail-row__value--big" style={{ color }}>
-            {sign}€{item.amount.toLocaleString()}
+            {sign}{item.currencySymbol}{item.amount.toLocaleString()}
           </span>
         </div>
         <div className="detail-row">
@@ -2139,7 +2149,7 @@ const MatchCard = memo(function MatchCard({ item, type, ratio, onTap }) {
 
         <div className="match-card__right">
           <span className="match-card__amount" style={{ color: amountColor }}>
-            {sign}€{item.amount.toLocaleString()}
+            {sign}{item.currencySymbol}{item.amount.toLocaleString()}
           </span>
         </div>
       </div>
@@ -2510,16 +2520,17 @@ const HomeSearch = memo(function HomeSearch({ onMatchTap }) {
 function mapRequest(r) {
   return {
     id:             r.id,
-    name:           r.counterpartDisplayName   ?? '—',
-    avatarInitials: r.counterpartAvatarInitials ?? '??',
-    avatarPhoto:    r.counterpartProfilePhotoUrl ?? null,
-    methods:        r.paymentMethods            ?? [],
+    name:           r.ownerDisplayName      ?? '—',
+    avatarInitials: r.ownerAvatarInitials   ?? '?',
+    avatarPhoto:    r.ownerProfilePhotoUrl  ?? null,
+    methods:        r.paymentMethods        ?? [],
     amount:         r.amount,
-    tierName:       r.counterpartTierName       ?? '',
-    tierOrder:      r.counterpartTierOrder      ?? 0,
-    trusted:        r.counterpartIsTrusted      ?? false,
+    currencySymbol: CURRENCY_SYMBOL[r.currency] ?? '€',
+    tierName:       r.ownerTierName         ?? '',
+    tierOrder:      r.ownerTierOrder        ?? 0,
+    trusted:        r.ownerIsTrusted        ?? false,
     rate:           r.rateValue,
-    date:           r.settledAt ?? r.createdAt,
+    date:           r.expiresAt ?? r.createdAt,
     status:         r.status,
     reference:      r.referenceCode ?? null,
   };
