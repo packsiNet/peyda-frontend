@@ -22,10 +22,11 @@ function applyTgSafeArea() {
   const left   =  sa.left   ?? 0;
   const right  =  sa.right  ?? 0;
   const root = document.documentElement;
-  root.style.setProperty('--tg-inset-top',    `${top}px`);
-  root.style.setProperty('--tg-inset-bottom', `${bottom}px`);
-  root.style.setProperty('--tg-inset-left',   `${left}px`);
-  root.style.setProperty('--tg-inset-right',  `${right}px`);
+  // Write to --tg-sa-* so CSS max() can pick the larger of Telegram vs env()
+  root.style.setProperty('--tg-sa-top',    `${top}px`);
+  root.style.setProperty('--tg-sa-bottom', `${bottom}px`);
+  root.style.setProperty('--tg-sa-left',   `${left}px`);
+  root.style.setProperty('--tg-sa-right',  `${right}px`);
 }
 
 // Theme → Telegram header/bg color map

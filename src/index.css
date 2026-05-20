@@ -49,13 +49,21 @@ body::after {
 }
 
 :root {
-  /* ── Telegram / device safe-area insets ──────────────────────────────
-     JS overrides these at runtime via window.Telegram.WebApp.
-     Fallback to env() for non-Telegram browsers.                       */
-  --tg-inset-top:    env(safe-area-inset-top,    0px);
-  --tg-inset-bottom: env(safe-area-inset-bottom, 0px);
-  --tg-inset-left:   env(safe-area-inset-left,   0px);
-  --tg-inset-right:  env(safe-area-inset-right,  0px);
+  /* ── Telegram safe-area (set by JS) ──────────────────────────────────
+     JS writes to --tg-sa-* only. The computed --tg-inset-* uses max()
+     so env() never gets overridden to 0 by Telegram reporting zeros.  */
+  --tg-sa-top:    0px;
+  --tg-sa-bottom: 0px;
+  --tg-sa-left:   0px;
+  --tg-sa-right:  0px;
+
+  --tg-inset-top:    max(var(--tg-sa-top),    env(safe-area-inset-top,    0px));
+  --tg-inset-bottom: max(var(--tg-sa-bottom), env(safe-area-inset-bottom, 0px));
+  --tg-inset-left:   max(var(--tg-sa-left),   env(safe-area-inset-left,   0px));
+  --tg-inset-right:  max(var(--tg-sa-right),  env(safe-area-inset-right,  0px));
+
+  /* ── Fixed tabbar height (used as bottom padding in scroll areas) ─── */
+  --tabbar-h: calc(70px + var(--tg-inset-bottom));
 
   --ink: #2b1a18;
   --ink-soft: #4a3530;
@@ -217,7 +225,7 @@ body::after {
   flex: 1;
   overflow-y: auto;
   scrollbar-width: none;
-  padding: 24px calc(20px + var(--tg-inset-right)) 32px calc(20px + var(--tg-inset-left));
+  padding: 24px calc(20px + var(--tg-inset-right)) var(--tabbar-h) calc(20px + var(--tg-inset-left));
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -977,7 +985,7 @@ body::after {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 8px 12px 18px;
+  padding: 8px 12px var(--tabbar-h);
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   transform: translateZ(0);
@@ -1215,7 +1223,7 @@ body::after {
 .p2p-scroll {
   flex: 1;
   overflow-y: auto;
-  padding: 3px 12px 10px;
+  padding: 3px 12px var(--tabbar-h);
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   transform: translateZ(0);
@@ -1424,7 +1432,7 @@ body::after {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 10px 14px 18px;
+  padding: 10px 14px var(--tabbar-h);
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   transform: translateZ(0);
@@ -1647,10 +1655,11 @@ body::after {
 }
 
 .p2p-tabbar {
-  flex-shrink: 0;
-  position: sticky;
+  position: fixed;
   bottom: 0;
-  z-index: 1;
+  left: 0;
+  right: 0;
+  z-index: 50;
   width: 100%;
   overflow: visible;
   background: rgba(255, 246, 232, 0.97);
