@@ -1835,7 +1835,7 @@ const PageHeader = memo(function PageHeader({ title, onBack }) {
   );
 });
 
-const AppTabBar = memo(function AppTabBar({ activePage, onNavigate, onProfile, onExchange }) {
+const AppTabBar = memo(function AppTabBar({ activePage, onNavigate, onProfile, onExchange, matchCount = 0 }) {
   return (
     <nav className="p2p-tabbar" aria-label="Main navigation">
       <button type="button" className={`p2p-tab ${activePage === 'home' ? 'is-active' : ''}`} onClick={() => onNavigate('home')} aria-label="Home">
@@ -1875,11 +1875,18 @@ const AppTabBar = memo(function AppTabBar({ activePage, onNavigate, onProfile, o
         <span className="p2p-tab__bar" aria-hidden="true" />
       </button>
 
-      <button type="button" className={`p2p-tab ${activePage === 'matches' ? 'is-active' : ''}`} onClick={() => onNavigate('matches')} aria-label="Matches">
-        <svg className="p2p-tab__icon" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-          <path d="M15 5l4 4" />
-        </svg>
+      <button type="button" className={`p2p-tab ${activePage === 'matches' ? 'is-active' : ''}`} onClick={() => onNavigate('matches')} aria-label={`Matches${matchCount > 0 ? `, ${matchCount} active` : ''}`}>
+        <div className="p2p-tab__icon-wrap">
+          <svg className="p2p-tab__icon" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+            <path d="M15 5l4 4" />
+          </svg>
+          {matchCount > 0 && (
+            <span className="p2p-tab__badge" aria-hidden="true">
+              {matchCount > 99 ? '99+' : matchCount}
+            </span>
+          )}
+        </div>
         <span className="p2p-tab__label">Matches</span>
         <span className="p2p-tab__bar" aria-hidden="true" />
       </button>
@@ -1887,7 +1894,7 @@ const AppTabBar = memo(function AppTabBar({ activePage, onNavigate, onProfile, o
   );
 });
 
-function AppShell({ header, children, activePage, onNavigate, onProfile, onExchange }) {
+function AppShell({ header, children, activePage, onNavigate, onProfile, onExchange, matchCount }) {
   const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   useEffect(() => {
@@ -1930,6 +1937,7 @@ function AppShell({ header, children, activePage, onNavigate, onProfile, onExcha
             onNavigate={onNavigate}
             onProfile={onProfile}
             onExchange={onExchange}
+            matchCount={matchCount}
           />
         )}
       </div>
@@ -3514,6 +3522,7 @@ export default function App() {
       onNavigate={handleNavigate}
       onProfile={handleProfileOpen}
       onExchange={handleExchangeOpen}
+      matchCount={myMatches.length}
     >
       {activePage === 'home' && (
         <HomeSearch onMatchTap={handleMatchTap} onDirectCreateMatch={handleDirectCreateMatch} />
