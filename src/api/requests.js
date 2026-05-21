@@ -16,4 +16,8 @@ export const requestsApi = {
   preview: (body) => apiClient.post('/api/Requests/preview', body),
   create: (body) => apiClient.post('/api/Requests', body),
   cancel: (id) => apiClient.delete(`/api/Requests/${id}`),
+  mine: (type) => {
+    const qs = type != null ? `?type=${type}` : '';
+    return apiClient.get(`/api/Requests/mine${qs}`);
+  },
 };

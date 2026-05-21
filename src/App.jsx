@@ -39,7 +39,7 @@ const TG_THEME_COLORS = {
 
 const THEMES = ['light', 'dark'];
 
-const SUB_PAGES = { identity: 'Identity Verification', profile: 'Profile' };
+const SUB_PAGES = { identity: 'Identity Verification', profile: 'Profile', 'my-requests': 'My Requests' };
 
 const SplashLoader = memo(function SplashLoader() {
   return (
@@ -1954,7 +1954,7 @@ const PlaceholderPage = memo(function PlaceholderPage({ title, icon }) {
   );
 });
 
-const ProfileModal = memo(function ProfileModal({ onClose, onProfile, onIdentity }) {
+const ProfileModal = memo(function ProfileModal({ onClose, onProfile, onIdentity, onMyRequests }) {
   return (
     <div className="profile-modal-backdrop" onClick={onClose}>
       <div className="profile-modal" onClick={(event) => event.stopPropagation()}>
@@ -1972,6 +1972,14 @@ const ProfileModal = memo(function ProfileModal({ onClose, onProfile, onIdentity
           </svg>
           Identity
         </button>
+        <button type="button" className="profile-modal__item" onClick={() => { onClose(); onMyRequests(); }}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="3" width="12" height="10" rx="1.5" />
+            <line x1="5" y1="6.5" x2="11" y2="6.5" />
+            <line x1="5" y1="9" x2="9" y2="9" />
+          </svg>
+          My Requests
+        </button>
         <button type="button" className="profile-modal__item" onClick={onClose}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="4" width="10" height="8" rx="1" />
@@ -1983,6 +1991,146 @@ const ProfileModal = memo(function ProfileModal({ onClose, onProfile, onIdentity
     </div>
   );
 });
+
+const MY_REQUEST_STATUS = {
+  0: { label: 'Pending',   color: 'var(--amber-deep)' },
+  1: { label: 'Matched',   color: 'var(--leaf-deep)'  },
+  2: { label: 'Completed', color: 'var(--leaf-deep)'  },
+  3: { label: 'Cancelled', color: 'var(--rose-deep)'  },
+  4: { label: 'Expired',   color: 'var(--muted)'      },
+};
+
+const MY_REQUEST_TYPE_FILTER = [
+  { id: null,      label: 'All'     },
+  { id: 'Send',    label: 'Send'    },
+  { id: 'Receive', label: 'Receive' },
+];
+
+function MyRequestsPage() {
+  const [typeFilter, setTypeFilter] = useState(null);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [cancelling, setCancelling] = useState(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    requestsApi.mine(typeFilter)
+      .then(data => setItems(data ?? []))
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false));
+  }, [typeFilter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleCancel = async (id) => {
+    if (cancelling) return;
+    setCancelling(id);
+    try {
+      await requestsApi.cancel(id);
+      setItems(prev => prev.filter(r => r.id !== id));
+    } catch {
+      // error shown via notification bus
+    } finally {
+      setCancelling(null);
+    }
+  };
+
+  return (
+    <div className="page-scroll">
+      <div className="p2p-filterbar" style={{ paddingTop: 8 }}>
+        {MY_REQUEST_TYPE_FILTER.map(f => (
+          <button key={String(f.id)} type="button"
+            className={`p2p-filter-btn ${typeFilter === f.id ? 'p2p-filter-btn--active' : ''}`}
+            onClick={() => setTypeFilter(f.id)}
+            aria-pressed={typeFilter === f.id}>
+            <span className="p2p-filter-btn__label">{f.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="kyc-status-loading">
+          <div className="kyc-loading-spinner">
+            <svg width="40" height="40" viewBox="0 0 52 52" fill="none">
+              <circle cx="26" cy="26" r="22" stroke="var(--amber)" strokeOpacity="0.15" strokeWidth="4" />
+              <path d="M26 4a22 22 0 0 1 22 22" stroke="var(--amber-deep)" strokeWidth="4" strokeLinecap="round" />
+            </svg>
+          </div>
+        </div>
+      ) : items.length === 0 ? (
+        <div className="empty-state" role="status">
+          <div className="empty-state__card">
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className="empty-state__icon" aria-hidden="true">
+              <rect x="2" y="5" width="20" height="14" rx="2" />
+              <line x1="2" y1="10" x2="22" y2="10" />
+            </svg>
+            <p className="empty-state__text">No requests yet</p>
+            <p className="empty-state__sub">Your submitted requests will appear here.</p>
+          </div>
+        </div>
+      ) : (
+        <div className="p2p-list-wrap p2p-scroll" role="list">
+          {items.map(r => {
+            const isSend = r.type === 'Send' || r.type === 0;
+            const currNum = typeof r.currency === 'number' ? r.currency : (CURRENCY_ENUM[r.currency] ?? 0);
+            const sym = CURRENCY_SYMBOL[currNum] ?? '€';
+            const statusInfo = MY_REQUEST_STATUS[r.status] ?? { label: String(r.status), color: 'var(--muted)' };
+            const isPending = r.status === 0;
+            const methods = r.paymentMethods ?? [];
+
+            return (
+              <article key={r.id} className={`match-card ${isSend ? 'match-card--sent' : 'match-card--received'}`} role="listitem">
+                <div className="match-card__top">
+                  <div className="match-card__avatar" aria-hidden="true">
+                    {isSend
+                      ? <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 14V4M5 8l4-4 4 4"/></svg>
+                      : <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 4v10M5 10l4 4 4-4"/></svg>}
+                  </div>
+                  <div className="match-card__info">
+                    <div className="match-card__name-row">
+                      <span className="match-card__name">{isSend ? 'Send' : 'Receive'} · {sym}{(r.amount ?? 0).toLocaleString()}</span>
+                    </div>
+                    <div className="match-card__meta">
+                      <span className="match-card__method">{methods.join(' · ') || '—'}</span>
+                      <span className="match-card__sep" aria-hidden="true" />
+                      <span className="match-card__date">{fmtDate(r.createdAt)}</span>
+                    </div>
+                  </div>
+                  <div className="match-card__right">
+                    <span className="match-card__amount" style={{ color: isSend ? 'var(--amber-deep)' : 'var(--leaf-deep)' }}>
+                      {sym}{(r.amount ?? 0).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="match-card__footer">
+                  <div className="match-card__rate-wrap">
+                    <span className="match-card__rate-label">Rate</span>
+                    <span className="match-card__rate">{(r.rateValue ?? 0).toLocaleString()} T</span>
+                  </div>
+                  <span className="match-badge match-badge--pending" style={{ color: statusInfo.color }}>
+                    {statusInfo.label}
+                  </span>
+                </div>
+
+                {isPending && (
+                  <div className="matching-card__actions">
+                    <button type="button"
+                      className="btn btn--ghost btn--sm matching-card__action-btn"
+                      disabled={cancelling === r.id}
+                      onClick={() => handleCancel(r.id)}>
+                      {cancelling === r.id ? 'Cancelling…' : 'Cancel Request'}
+                    </button>
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const KYC_STATUS_DISPLAY = {
   0: { label: 'Not Submitted', color: 'var(--ink-soft)'   },
@@ -3315,6 +3463,10 @@ export default function App() {
     setShowProfile(false);
     setActivePage('identity');
   }, []);
+  const handleMyRequestsNav = useCallback(() => {
+    setShowProfile(false);
+    setActivePage('my-requests');
+  }, []);
   const handleIdentitySave = useCallback((data) => setUserProfile(data), []);
 
   if (loading) return <SplashLoader />;
@@ -3377,6 +3529,10 @@ export default function App() {
 
       {activePage === 'profile' && (
         <ProfileContent profile={userProfile} />
+      )}
+
+      {activePage === 'my-requests' && (
+        <MyRequestsPage />
       )}
 
       {activePage === 'sent' && (
@@ -3448,6 +3604,7 @@ export default function App() {
           onClose={handleProfileClose}
           onProfile={handleProfileNav}
           onIdentity={handleIdentityNav}
+          onMyRequests={handleMyRequestsNav}
         />
       )}
     </AppShell>
