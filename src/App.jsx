@@ -3290,7 +3290,13 @@ export default function App() {
     if (!detail) return;
     const { item, type } = detail;
     setDetail(null);
-    setDirectMatch({ item, itemType: type });
+    // type 'sent'     = other person is sending     = I receive → foreignAccounts
+    // type 'received' = other person is receiving   = I send    → receiverInfo
+    const myDirection = type === 'sent' ? 'receive' : 'send';
+    setMatchAccount({
+      item: { ...item, paymentMethods: item.paymentMethods ?? item.methods ?? [] },
+      direction: myDirection,
+    });
   }, [detail]);
   const handleThemeToggle = useCallback(() => setThemeIdx(i => (i + 1) % THEMES.length), []);
   const handleSentLayoutToggle = useCallback(() => setSentLayout(m => m === 'tile' ? 'list' : 'tile'), []);
