@@ -8,6 +8,7 @@ import { requestsApi } from './api/requests.js';
 import { receiversApi } from './api/receivers.js';
 import { transactionsApi } from './api/transactions.js';
 import { matchesApi } from './api/matches.js';
+import { notificationBus } from './notifications/index.jsx';
 
 // ── Telegram Mini App safe-area hook ──────────────────────────────────────
 
@@ -186,7 +187,7 @@ const METHOD_META = {
   SEPA:    { label: 'SEPA',    country: 'EU' },
 };
 
-const TxTile = memo(function TxTile({ item, type, onTap }) {
+const TxTile = memo(function TxTile({ item, type, onTap, onCreateMatch }) {
   const isReceived = type === 'received';
   const sign = isReceived ? '+' : '−';
   const firstMethod = item.methods[0] ?? null;
@@ -215,6 +216,12 @@ const TxTile = memo(function TxTile({ item, type, onTap }) {
 
       <footer className="tx-tile__meta tx-tile__meta--abs">
         <span className="tx-tile__country">{meta.country}</span>
+        <button
+          type="button"
+          className="tx-tile__match-btn"
+          onClick={(e) => { e.stopPropagation(); onCreateMatch?.(item, type); }}
+          aria-label="Create match"
+        >Match</button>
       </footer>
     </article>
   );
@@ -275,7 +282,7 @@ const SortBar = memo(function SortBar({ sort, onSort, layout, onToggleLayout }) 
   );
 });
 
-const TxListItem = memo(function TxListItem({ item, type, onTap }) {
+const TxListItem = memo(function TxListItem({ item, type, onTap, onCreateMatch }) {
   const isReceived = type === 'received';
   const sign = isReceived ? '+' : '−';
   const amountColor = isReceived ? 'var(--leaf-deep)' : 'var(--amber-deep)';
@@ -340,11 +347,20 @@ const TxListItem = memo(function TxListItem({ item, type, onTap }) {
           );
         })()}
       </div>
+      <div className="matching-card__actions">
+        <button
+          type="button"
+          className="btn btn--primary btn--sm matching-card__action-btn"
+          onClick={(e) => { e.stopPropagation(); onCreateMatch?.(item, type); }}
+        >
+          Create Match
+        </button>
+      </div>
     </article>
   );
 });
 
-const TransactionListPage = memo(function TransactionListPage({ data, type, sort, layout, onSort, onLayoutToggle, onTap, loading }) {
+const TransactionListPage = memo(function TransactionListPage({ data, type, sort, layout, onSort, onLayoutToggle, onTap, onCreateMatch, loading }) {
   const sorted = useMemo(() => {
     if (!sort) return data;
     return [...data].sort((a, b) => sort === 'highest' ? b.amount - a.amount : a.amount - b.amount);
@@ -386,14 +402,14 @@ const TransactionListPage = memo(function TransactionListPage({ data, type, sort
           <div className="p2p-tiles-wrap p2p-scroll">
             <div className="p2p-tiles" role="list">
               {sorted.map((item) => (
-                <TxTile key={item.id} item={item} type={type} onTap={onTap} />
+                <TxTile key={item.id} item={item} type={type} onTap={onTap} onCreateMatch={onCreateMatch} />
               ))}
             </div>
           </div>
         ) : (
           <div className="p2p-list-wrap p2p-scroll" role="list">
             {sorted.map((item) => (
-              <TxListItem key={item.id} item={item} type={type} onTap={onTap} />
+              <TxListItem key={item.id} item={item} type={type} onTap={onTap} onCreateMatch={onCreateMatch} />
             ))}
           </div>
         )}
@@ -511,6 +527,343 @@ function MatchConfirmSheet({ item, userDirection, onClose, onConfirmed }) {
           </button>
           <button type="button" className="btn btn--primary" onClick={handleConfirm} disabled={loading}>
             {loading ? 'Creating…' : 'Create Match'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Step 1: Browse Detail Modal (market card detail) ──────────
+function BrowseDetailModal({ item, myDirection, onClose, onMatch }) {
+  const currSym = CURRENCY_SYMBOL[item.currency] ?? '€';
+  const otherType = myDirection === 'send' ? 'Receive' : 'Send';
+
+  return (
+    <div className="sheet-backdrop" onClick={onClose}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet__handle" />
+        <div className="sheet__title">Request Details</div>
+        <p className="sheet__sub">{otherType} request · {currSym}{item.amount.toLocaleString()}</p>
+
+        <div className="match-card__top" style={{ paddingBottom: 16 }}>
+          <div className="match-card__avatar" aria-hidden="true">{item.initials}</div>
+          <div className="match-card__info">
+            <div className="match-card__name-row">
+              <span className="match-card__name">{item.name}</span>
+              {item.trusted && (
+                <span className="match-card__trust" aria-label="Trusted">
+                  <svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">
+                    <path d="M5 0.5L6.18 3.32L9.24 3.55L7.04 5.44L7.73 8.45L5 6.8L2.27 8.45L2.96 5.44L0.76 3.55L3.82 3.32L5 0.5Z"/>
+                  </svg>
+                  Trust
+                </span>
+              )}
+            </div>
+            <div className="match-card__meta">
+              <span className="match-card__level">{item.levelTitle}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="detail-row">
+          <span className="detail-row__label">Amount</span>
+          <span className="detail-row__value detail-row__value--big">{currSym}{item.amount.toLocaleString()}</span>
+        </div>
+        <div className="detail-row">
+          <span className="detail-row__label">Rate</span>
+          <span className="detail-row__value">{item.rate.toLocaleString()} T</span>
+        </div>
+        <div className="detail-row">
+          <span className="detail-row__label">Methods</span>
+          <span className="detail-row__value">{(item.paymentMethods ?? []).join(', ') || '—'}</span>
+        </div>
+        <div className="detail-row">
+          <span className="detail-row__label">Posted</span>
+          <span className="detail-row__value">{fmtDate(item.date)}</span>
+        </div>
+
+        <div className="sheet-actions">
+          <button type="button" className="btn btn--ghost" onClick={onClose}>Close</button>
+          <button type="button" className="btn btn--primary" onClick={onMatch}>
+            Match with this request
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Step 2: Account details + two sequential API calls ────────
+function MatchAccountModal({ item, myDirection, onClose, onMatchCreated, onKycNeeded }) {
+  const isCaseA = myDirection === 'receive';
+  const availableMethods = item.paymentMethods ?? [];
+
+  const [chosenMethod, setChosenMethod] = useState(() =>
+    availableMethods.length === 1 ? availableMethods[0] : null
+  );
+  const [foreignFields, setForeignFields] = useState({});
+  const [receivers, setReceivers] = useState([]);
+  const [receiversLoading, setReceiversLoading] = useState(!isCaseA);
+  const [selectedReceiverId, setSelectedReceiverId] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isCaseA) return;
+    receiversApi.getAll()
+      .then((data) => setReceivers(data ?? []))
+      .catch(() => {})
+      .finally(() => setReceiversLoading(false));
+  }, [isCaseA]);
+
+  const fields = chosenMethod ? (FOREIGN_ACCOUNT_FIELDS[chosenMethod] ?? []) : [];
+  const foreignValid = chosenMethod
+    ? fields.filter((f) => !f.optional).every((f) => foreignFields[f.id]?.trim())
+    : false;
+  const isValid = isCaseA ? foreignValid : (!!chosenMethod && !!selectedReceiverId);
+
+  const handleSubmit = async () => {
+    if (!isValid || submitting) return;
+    setSubmitting(true);
+    try {
+      const methodEnum = PAYMENT_METHOD_ENUM[chosenMethod];
+      const currency = typeof item.currency === 'number' ? item.currency : (CURRENCY_ENUM[item.currency] ?? 0);
+      const counterType = isCaseA ? REQUEST_TYPE_ENUM.receive : REQUEST_TYPE_ENUM.send;
+
+      await requestsApi.create({
+        type: counterType,
+        currency,
+        amount: item.amount,
+        rateType: RATE_TYPE_ENUM.Custom,
+        customRate: item.rate,
+        paymentMethods: [methodEnum],
+        ...(isCaseA
+          ? {
+              receiverId: null,
+              foreignAccounts: [{
+                method: methodEnum,
+                fullName: foreignFields.fullName ?? null, username: foreignFields.username ?? null,
+                email: foreignFields.email ?? null, emailOrPhone: foreignFields.emailOrPhone ?? null,
+                iban: foreignFields.iban ?? null, bic: foreignFields.bic ?? null,
+                bankName: foreignFields.bankName ?? null, accountNum: foreignFields.accountNum ?? null,
+                swift: foreignFields.swift ?? null, bankAddress: foreignFields.bankAddress ?? null,
+              }],
+            }
+          : { receiverId: selectedReceiverId, foreignAccounts: null }
+        ),
+      });
+
+      try {
+        await matchesApi.create({ requestId: item.id });
+        onMatchCreated?.();
+      } catch (matchErr) {
+        if (matchErr?.status === 404) {
+          notificationBus.emit({ type: 'error', message: 'این درخواست توسط کاربر دیگری پیش گرفته شد. لطفاً درخواست دیگری انتخاب کنید.' });
+          onClose?.();
+        }
+      }
+    } catch (createErr) {
+      if ((createErr?.message ?? '').toLowerCase().includes('kyc')) onKycNeeded?.();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const currSym = CURRENCY_SYMBOL[typeof item.currency === 'number' ? item.currency : (CURRENCY_ENUM[item.currency] ?? 0)] ?? '€';
+
+  return (
+    <div className="sheet-backdrop" onClick={!submitting ? onClose : undefined}>
+      <div className="sheet exchange-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet__handle" />
+        <div className="sheet__title">{isCaseA ? 'Your Account Details' : 'Select Receiver'}</div>
+        <p className="sheet__sub">
+          {isCaseA ? 'Choose a payment method and enter your account details' : 'Select the Iranian account to receive the money'}
+        </p>
+
+        <div className="exchange-summary">
+          <div className="exchange-summary__row">
+            <span>{currSym}{item.amount.toLocaleString()}</span>
+            <span className="exchange-summary__eq">@</span>
+            <span>{item.rate.toLocaleString()} T</span>
+          </div>
+        </div>
+
+        <div className="exchange-modal__section">
+          <label className="input-label">Payment Method</label>
+          <div className="method-chips">
+            {availableMethods.map((m) => (
+              <button key={m} type="button"
+                className={`method-chip ${chosenMethod === m ? 'method-chip--active' : ''}`}
+                onClick={() => { setChosenMethod(m); setForeignFields({}); }} aria-pressed={chosenMethod === m}>
+                {m}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {isCaseA ? (
+          chosenMethod && (
+            <div className="exchange-modal__section">
+              {fields.map((f) => (
+                <div key={f.id} className="receiver-form__field">
+                  <label className="input-label">
+                    {f.label}{f.optional && <span className="input-label__hint">optional</span>}
+                  </label>
+                  <input className="input" type={f.type} placeholder={f.placeholder}
+                    value={foreignFields[f.id] ?? ''}
+                    onChange={(e) => setForeignFields((prev) => ({ ...prev, [f.id]: e.target.value }))} />
+                </div>
+              ))}
+            </div>
+          )
+        ) : receiversLoading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
+            <div className="kyc-loading-spinner">
+              <svg width="40" height="40" viewBox="0 0 52 52" fill="none">
+                <circle cx="26" cy="26" r="22" stroke="var(--amber)" strokeOpacity="0.15" strokeWidth="4" />
+                <path d="M26 4a22 22 0 0 1 22 22" stroke="var(--amber-deep)" strokeWidth="4" strokeLinecap="round" />
+              </svg>
+            </div>
+          </div>
+        ) : receivers.length === 0 ? (
+          <div className="exchange-modal__section">
+            <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 14, padding: '16px 0' }}>
+              No receiver accounts found. Please add one first.
+            </p>
+          </div>
+        ) : (
+          <div className="exchange-modal__section">
+            <div className="rcv-list">
+              {receivers.map((r) => {
+                const isSel = selectedReceiverId === r.id;
+                return (
+                  <button key={r.id} type="button" className={`rcv-item${isSel ? ' rcv-item--selected' : ''}`}
+                    onClick={() => setSelectedReceiverId(r.id)}>
+                    <span className="rcv-item__radio" aria-hidden="true">
+                      {isSel
+                        ? <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8.25" stroke="currentColor" strokeWidth="1.5"/><circle cx="9" cy="9" r="4.5" fill="currentColor"/></svg>
+                        : <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8.25" stroke="currentColor" strokeWidth="1.5"/></svg>}
+                    </span>
+                    <span className="rcv-item__info">
+                      <span className="rcv-item__name">{r.firstName} {r.lastName}</span>
+                      <span className="rcv-item__iban">{r.iban}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="sheet-actions">
+          <button type="button" className="btn btn--ghost" onClick={onClose} disabled={submitting}>Cancel</button>
+          <button type="button" className="btn btn--primary" disabled={!isValid || submitting} onClick={handleSubmit}>
+            {submitting ? 'Matching…' : 'Confirm & Match'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Create Match from own request (sent/received list) ────────
+function DirectMatchModal({ item, itemType, onClose, onMatched }) {
+  const searchType = itemType === 'sent' ? 'Send' : 'Receive';
+  const currSym = item.currencySymbol ?? '€';
+  const currencyStr = currSym === '$' ? 'USD' : currSym === 'CA$' ? 'CAD' : 'EUR';
+
+  const [results, setResults] = useState([]);
+  const [loadingSearch, setLoadingSearch] = useState(true);
+  const [selected, setSelected] = useState(null);
+  const [matching, setMatching] = useState(false);
+
+  const doSearch = () => {
+    setLoadingSearch(true);
+    setSelected(null);
+    requestsApi.search({ type: searchType, currency: currencyStr, amount: item.amount })
+      .then((data) => setResults(data ?? []))
+      .catch(() => setResults([]))
+      .finally(() => setLoadingSearch(false));
+  };
+
+  useEffect(() => { doSearch(); }, []);
+
+  const handleMatch = async () => {
+    if (!selected || matching) return;
+    setMatching(true);
+    try {
+      await matchesApi.create({ requestId: selected.requestId });
+      onMatched?.();
+    } catch (err) {
+      if (err?.status === 404) {
+        notificationBus.emit({ type: 'error', message: 'این درخواست توسط کاربر دیگری پیش گرفته شد. لطفاً درخواست دیگری انتخاب کنید.' });
+        doSearch();
+      }
+    } finally {
+      setMatching(false);
+    }
+  };
+
+  return (
+    <div className="sheet-backdrop" onClick={!matching ? onClose : undefined}>
+      <div className="sheet exchange-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet__handle" />
+        <div className="sheet__title">Create Match</div>
+        <p className="sheet__sub">Select a matching request to pair with your {itemType} request</p>
+
+        <div className="exchange-summary">
+          <div className="exchange-summary__row">
+            <span>{currSym}{item.amount.toLocaleString()}</span>
+            <span className="exchange-summary__eq">@</span>
+            <span>{(item.rate ?? 0).toLocaleString()} T</span>
+          </div>
+        </div>
+
+        {loadingSearch ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
+            <div className="kyc-loading-spinner">
+              <svg width="40" height="40" viewBox="0 0 52 52" fill="none">
+                <circle cx="26" cy="26" r="22" stroke="var(--amber)" strokeOpacity="0.15" strokeWidth="4" />
+                <path d="M26 4a22 22 0 0 1 22 22" stroke="var(--amber-deep)" strokeWidth="4" strokeLinecap="round" />
+              </svg>
+            </div>
+          </div>
+        ) : results.length === 0 ? (
+          <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 14, padding: '24px 0' }}>
+            No matching requests found at this time.
+          </p>
+        ) : (
+          <div className="exchange-modal__section">
+            <div className="rcv-list">
+              {results.map((r) => {
+                const isSel = selected?.requestId === r.requestId;
+                const initials = (r.userDisplayName ?? '?').split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2);
+                return (
+                  <button key={r.requestId} type="button"
+                    className={`rcv-item${isSel ? ' rcv-item--selected' : ''}`}
+                    onClick={() => setSelected(r)}>
+                    <span className="rcv-item__radio" aria-hidden="true">
+                      {isSel
+                        ? <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8.25" stroke="currentColor" strokeWidth="1.5"/><circle cx="9" cy="9" r="4.5" fill="currentColor"/></svg>
+                        : <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8.25" stroke="currentColor" strokeWidth="1.5"/></svg>}
+                    </span>
+                    <span className="rcv-item__info">
+                      <span className="rcv-item__name">{initials} · {r.userDisplayName} {r.isTrusted ? '★' : ''}</span>
+                      <span className="rcv-item__iban">
+                        {currSym}{(r.amount ?? 0).toLocaleString()} @ {(r.rateValue ?? 0).toLocaleString()} T · {(r.paymentMethods ?? []).join(', ')}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="sheet-actions">
+          <button type="button" className="btn btn--ghost" onClick={onClose} disabled={matching}>Cancel</button>
+          <button type="button" className="btn btn--primary" disabled={!selected || matching} onClick={handleMatch}>
+            {matching ? 'Creating…' : 'Create Match'}
           </button>
         </div>
       </div>
@@ -2258,6 +2611,15 @@ const MatchCard = memo(function MatchCard({ item, type, ratio, onTap }) {
         </div>
         <span className={`match-badge ${matchInfo.cls}`}>{matchInfo.label}</span>
       </div>
+      <div className="matching-card__actions">
+        <button
+          type="button"
+          className="btn btn--primary btn--sm matching-card__action-btn"
+          onClick={(e) => { e.stopPropagation(); onTap(item, type); }}
+        >
+          View &amp; Match
+        </button>
+      </div>
     </article>
   );
 });
@@ -2443,6 +2805,7 @@ const MatchingPage = memo(function MatchingPage({ matches, onUploadScreenshot, o
 
 const HomeSearch = memo(function HomeSearch({ onMatchTap }) {
   const [direction, setDirection] = useState('send');
+  const [currency, setCurrency] = useState('EUR');
   const [amount, setAmount] = useState('');
   const [openHelp, setOpenHelp] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
@@ -2451,6 +2814,7 @@ const HomeSearch = memo(function HomeSearch({ onMatchTap }) {
 
   const amountNum = parseFloat(amount) || 0;
   const matchType = direction === 'send' ? 'received' : 'sent';
+  const currencySymbol = CURRENCIES.find((c) => c.id === currency)?.symbol ?? '€';
 
   useEffect(() => {
     if (!amountNum) { setSearchResults([]); return; }
@@ -2459,15 +2823,20 @@ const HomeSearch = memo(function HomeSearch({ onMatchTap }) {
       try {
         const data = await requestsApi.search({
           type: direction === 'send' ? 'Send' : 'Receive',
-          currency: 'EUR',
+          currency,
           amount: amountNum,
         });
         setSearchResults((data ?? []).map((r) => ({
           id: r.requestId,
           name: r.userDisplayName,
+          initials: r.userInitials ?? (r.userDisplayName?.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2) ?? '?'),
           method: r.paymentMethods?.[0] ?? '—',
+          paymentMethods: r.paymentMethods ?? [],
           amount: r.amount,
+          currency: r.currency ?? 0,
+          currencySymbol: CURRENCY_SYMBOL[r.currency] ?? '€',
           level: r.userLevel,
+          levelTitle: r.userLevelTitle ?? '',
           trusted: r.isTrusted,
           rate: r.rateValue,
           date: r.createdAt,
@@ -2480,7 +2849,7 @@ const HomeSearch = memo(function HomeSearch({ onMatchTap }) {
       }
     }, 400);
     return () => clearTimeout(timer);
-  }, [amountNum, direction]);
+  }, [amountNum, direction, currency]);
 
   const getMatch = (ratio) => {
     if (ratio <= 0.05) return { label: 'Exact', cls: 'match-badge--exact' };
@@ -2561,8 +2930,23 @@ const HomeSearch = memo(function HomeSearch({ onMatchTap }) {
           </button>
         </div>
 
+        <div className="seg seg--full" style={{ marginTop: 8 }}>
+          {CURRENCIES.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              disabled={!c.enabled}
+              className={`seg__btn ${currency === c.id ? 'is-active' : ''} ${!c.enabled ? 'seg__btn--disabled' : ''}`}
+              onClick={() => c.enabled && setCurrency(c.id)}
+            >
+              <span className="seg__btn-symbol">{c.symbol}</span>
+              {c.label}
+            </button>
+          ))}
+        </div>
+
         <div className="home-search__amount-row">
-          <span className="home-search__currency">€</span>
+          <span className="home-search__currency">{currencySymbol}</span>
           <input
             type="number"
             inputMode="decimal"
@@ -2577,7 +2961,7 @@ const HomeSearch = memo(function HomeSearch({ onMatchTap }) {
 
         <p className={`home-search__hint${amountNum > 0 ? ' home-search__hint--active' : ''}`}>
           {amountNum > 0
-            ? `Searching ${direction === 'send' ? 'receivers' : 'senders'} near €${amountNum.toLocaleString()}`
+            ? `Searching ${direction === 'send' ? 'receivers' : 'senders'} near ${currencySymbol}${amountNum.toLocaleString()}`
             : 'Enter an amount to find matching users'}
         </p>
       </div>
@@ -2603,7 +2987,7 @@ const HomeSearch = memo(function HomeSearch({ onMatchTap }) {
                   ? `${searchResults.length} match${searchResults.length !== 1 ? 'es' : ''} found`
                   : 'No matches found'}
             </span>
-            <span className="match-results__sub">±50% · €{amountNum.toLocaleString()}</span>
+            <span className="match-results__sub">±50% · {currencySymbol}{amountNum.toLocaleString()}</span>
           </div>
           {searchResults.map((item) => (
             <MatchCard key={item.id} item={item} type={matchType} ratio={item.ratio} onTap={() => onMatchTap(item, direction)} />
@@ -2622,6 +3006,7 @@ function mapRequest(r) {
     avatarPhoto:    r.ownerProfilePhotoUrl  ?? null,
     methods:        r.paymentMethods        ?? [],
     amount:         r.amount,
+    currency:       r.currency              ?? 0,
     currencySymbol: CURRENCY_SYMBOL[r.currency] ?? '€',
     tierName:       r.ownerTierName         ?? '',
     tierOrder:      r.ownerTierOrder        ?? 0,
@@ -2638,7 +3023,9 @@ export default function App() {
   const [detail, setDetail] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const [matchConfirm, setMatchConfirm] = useState(null);
+  const [browseDetail, setBrowseDetail] = useState(null);
+  const [matchAccount, setMatchAccount] = useState(null);
+  const [directMatch, setDirectMatch] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [themeIdx, setThemeIdx] = useState(0);
   const [sentLayout, setSentLayout] = useState('list');
@@ -2813,13 +3200,30 @@ export default function App() {
   const totalSent     = useMemo(() => sentRequests.reduce((sum, item) => sum + item.amount, 0), [sentRequests]);
 
   const handleTap = useCallback((item, type) => setDetail({ item, type }), []);
-  const handleMatchTap = useCallback((item, direction) => setMatchConfirm({ item, direction }), []);
-  const handleMatchConfirmed = useCallback(() => {
-    setMatchConfirm(null);
+  const handleMatchTap = useCallback((item, direction) => setBrowseDetail({ item, direction }), []);
+  const handleBrowseMatch = useCallback(() => {
+    setMatchAccount(browseDetail);
+    setBrowseDetail(null);
+  }, [browseDetail]);
+  const handleBrowseClose = useCallback(() => setBrowseDetail(null), []);
+  const handleMatchAccountClose = useCallback(() => setMatchAccount(null), []);
+  const handleMatchCreated = useCallback(() => {
+    setMatchAccount(null);
     setActivePage('matches');
     loadMatches();
   }, [loadMatches]);
-  const handleMatchConfirmClose = useCallback(() => setMatchConfirm(null), []);
+  const handleKycNeeded = useCallback(() => {
+    setMatchAccount(null);
+    setBrowseDetail(null);
+    setActivePage('identity');
+  }, []);
+  const handleDirectMatch = useCallback((item, type) => setDirectMatch({ item, itemType: type }), []);
+  const handleDirectMatchClose = useCallback(() => setDirectMatch(null), []);
+  const handleDirectMatched = useCallback(() => {
+    setDirectMatch(null);
+    setActivePage('matches');
+    loadMatches();
+  }, [loadMatches]);
   const handleNavigate = useCallback((p) => setActivePage(p), []);
   const handleNavigateHome = useCallback(() => setActivePage('home'), []);
   const handleProfileOpen = useCallback(() => setShowProfile(true), []);
@@ -2922,6 +3326,7 @@ export default function App() {
           onSort={handleSentSort}
           onLayoutToggle={handleSentLayoutToggle}
           onTap={handleTap}
+          onCreateMatch={handleDirectMatch}
           loading={sentLoading}
         />
       )}
@@ -2934,6 +3339,7 @@ export default function App() {
           onSort={handleReceivedSort}
           onLayoutToggle={handleReceivedLayoutToggle}
           onTap={handleTap}
+          onCreateMatch={handleDirectMatch}
           loading={receivedLoading}
         />
       )}
@@ -2948,12 +3354,29 @@ export default function App() {
       )}
 
       {detail && <DetailSheet item={detail.item} type={detail.type} onClose={handleDetailClose} />}
-      {matchConfirm && (
-        <MatchConfirmSheet
-          item={matchConfirm.item}
-          userDirection={matchConfirm.direction}
-          onClose={handleMatchConfirmClose}
-          onConfirmed={handleMatchConfirmed}
+      {browseDetail && (
+        <BrowseDetailModal
+          item={browseDetail.item}
+          myDirection={browseDetail.direction}
+          onClose={handleBrowseClose}
+          onMatch={handleBrowseMatch}
+        />
+      )}
+      {matchAccount && (
+        <MatchAccountModal
+          item={matchAccount.item}
+          myDirection={matchAccount.direction}
+          onClose={handleMatchAccountClose}
+          onMatchCreated={handleMatchCreated}
+          onKycNeeded={handleKycNeeded}
+        />
+      )}
+      {directMatch && (
+        <DirectMatchModal
+          item={directMatch.item}
+          itemType={directMatch.itemType}
+          onClose={handleDirectMatchClose}
+          onMatched={handleDirectMatched}
         />
       )}
       {showAdd && <ExchangeModal onClose={handleExchangeClose} onCreated={handleRequestCreated} />}
