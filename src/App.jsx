@@ -428,7 +428,7 @@ const TX_STATUS_DISPLAY = {
 
 const CURRENCY_SYMBOL = { 0: '€', 1: '$', 2: 'CA$' };
 
-function DetailSheet({ item, type, onClose }) {
+function DetailSheet({ item, type, onClose, onCreateMatch }) {
   const isReceived = type === 'received';
   const sign = isReceived ? '+' : '−';
   const color = isReceived ? 'var(--leaf-deep)' : 'var(--amber-deep)';
@@ -466,6 +466,11 @@ function DetailSheet({ item, type, onClose }) {
 
         <div className="sheet-actions">
           <button type="button" className="btn btn--ghost" onClick={onClose}>Close</button>
+          {onCreateMatch && (
+            <button type="button" className="btn btn--primary" onClick={onCreateMatch}>
+              Create Match
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -3236,6 +3241,12 @@ export default function App() {
     loadReceivedRequests();
   }, [loadSentRequests, loadReceivedRequests]);
   const handleDetailClose = useCallback(() => setDetail(null), []);
+  const handleDetailCreateMatch = useCallback(() => {
+    if (!detail) return;
+    const { item, type } = detail;
+    setDetail(null);
+    setDirectMatch({ item, itemType: type });
+  }, [detail]);
   const handleThemeToggle = useCallback(() => setThemeIdx(i => (i + 1) % THEMES.length), []);
   const handleSentLayoutToggle = useCallback(() => setSentLayout(m => m === 'tile' ? 'list' : 'tile'), []);
   const handleReceivedLayoutToggle = useCallback(() => setReceivedLayout(m => m === 'tile' ? 'list' : 'tile'), []);
@@ -3353,7 +3364,7 @@ export default function App() {
         />
       )}
 
-      {detail && <DetailSheet item={detail.item} type={detail.type} onClose={handleDetailClose} />}
+      {detail && <DetailSheet item={detail.item} type={detail.type} onClose={handleDetailClose} onCreateMatch={handleDetailCreateMatch} />}
       {browseDetail && (
         <BrowseDetailModal
           item={browseDetail.item}
