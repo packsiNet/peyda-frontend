@@ -471,7 +471,7 @@ function MatchConfirmSheet({ item, userDirection, onClose, onConfirmed }) {
   async function handleConfirm() {
     setLoading(true);
     try {
-      await matchesApi.create({ requestId: item.id });
+      await matchesApi.create({ requestId: item.id, foreignAccounts: null, receiverInfo: null });
       onConfirmed();
     } catch {
       // error shown via notification bus
@@ -584,91 +584,121 @@ function BrowseDetailModal({ item, myDirection, onClose, onMatch }) {
   );
 }
 
-// ── Step 2: Account details + two sequential API calls ────────
-function MatchAccountModal({ item, myDirection, onClose, onMatchCreated, onKycNeeded }) {
-  const isCaseA = myDirection === 'receive';
+// ── Create Match modal ────────────────────────────────────────
+function MatchAccountModal({ item, myDirection, userSentRequests = [], userReceivedRequests = [], onClose, onMatchCreated, onKycNeeded, onRequestGone }) {
+  const isSender = myDirection === 'send';
   const availableMethods = item.paymentMethods ?? [];
+
+  const itemCurrency = typeof item.currency === 'number' ? item.currency : (CURRENCY_ENUM[item.currency] ?? 0);
+  const pendingList = isSender ? userSentRequests : userReceivedRequests;
+  const hasPendingReverse = pendingList.some(
+    r => r.status === 0 && r.currency === itemCurrency && r.amount === item.amount
+  );
+
+  const [mode, setMode] = useState(() =>
+    hasPendingReverse ? 'confirm' : (isSender ? 'receiverInfo' : 'foreignAccounts')
+  );
 
   const [chosenMethod, setChosenMethod] = useState(() =>
     availableMethods.length === 1 ? availableMethods[0] : null
   );
   const [foreignFields, setForeignFields] = useState({});
-  const [receivers, setReceivers] = useState([]);
-  const [receiversLoading, setReceiversLoading] = useState(!isCaseA);
-  const [selectedReceiverId, setSelectedReceiverId] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (isCaseA) return;
-    receiversApi.getAll()
-      .then((data) => setReceivers(data ?? []))
-      .catch(() => {})
-      .finally(() => setReceiversLoading(false));
-  }, [isCaseA]);
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [nationalId, setNationalId] = useState('');
+  const [mobileNumber, setMobileNumber] = useState('');
+  const [iban, setIban] = useState('');
+
+  const [submitting, setSubmitting] = useState(false);
 
   const fields = chosenMethod ? (FOREIGN_ACCOUNT_FIELDS[chosenMethod] ?? []) : [];
   const foreignValid = chosenMethod
-    ? fields.filter((f) => !f.optional).every((f) => foreignFields[f.id]?.trim())
+    ? fields.filter(f => !f.optional).every(f => foreignFields[f.id]?.trim())
     : false;
-  const isValid = isCaseA ? foreignValid : (!!chosenMethod && !!selectedReceiverId);
+
+  const ibanValid = iban.startsWith('IR') && iban.length === 26;
+  const nationalIdValid = /^\d{10}$/.test(nationalId);
+  const receiverValid = !!(firstName.trim() && lastName.trim() && nationalIdValid && mobileNumber.trim() && ibanValid);
+
+  const isValid = mode === 'confirm' ? true
+    : mode === 'foreignAccounts' ? foreignValid
+    : receiverValid;
 
   const handleSubmit = async () => {
     if (!isValid || submitting) return;
     setSubmitting(true);
     try {
-      const methodEnum = PAYMENT_METHOD_ENUM[chosenMethod];
-      const currency = typeof item.currency === 'number' ? item.currency : (CURRENCY_ENUM[item.currency] ?? 0);
-      const counterType = isCaseA ? REQUEST_TYPE_ENUM.receive : REQUEST_TYPE_ENUM.send;
+      let foreignAccounts = null;
+      let receiverInfo = null;
 
-      await requestsApi.create({
-        type: counterType,
-        currency,
-        amount: item.amount,
-        rateType: RATE_TYPE_ENUM.Custom,
-        customRate: item.rate,
-        paymentMethods: [methodEnum],
-        ...(isCaseA
-          ? {
-              receiverId: null,
-              foreignAccounts: [{
-                method: methodEnum,
-                fullName: foreignFields.fullName ?? null, username: foreignFields.username ?? null,
-                email: foreignFields.email ?? null, emailOrPhone: foreignFields.emailOrPhone ?? null,
-                iban: foreignFields.iban ?? null, bic: foreignFields.bic ?? null,
-                bankName: foreignFields.bankName ?? null, accountNum: foreignFields.accountNum ?? null,
-                swift: foreignFields.swift ?? null, bankAddress: foreignFields.bankAddress ?? null,
-              }],
-            }
-          : { receiverId: selectedReceiverId, foreignAccounts: null }
-        ),
+      if (mode === 'foreignAccounts') {
+        foreignAccounts = [{
+          method: PAYMENT_METHOD_ENUM[chosenMethod] ?? 0,
+          fullName: foreignFields.fullName ?? null,
+          username: foreignFields.username ?? null,
+          email: foreignFields.email ?? null,
+          emailOrPhone: foreignFields.emailOrPhone ?? null,
+          iban: foreignFields.iban ?? null,
+          bic: foreignFields.bic ?? null,
+          bankName: foreignFields.bankName ?? null,
+          accountNum: foreignFields.accountNum ?? null,
+          swift: foreignFields.swift ?? null,
+          bankAddress: foreignFields.bankAddress ?? null,
+        }];
+      } else if (mode === 'receiverInfo') {
+        receiverInfo = {
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          nationalId: nationalId.trim(),
+          mobileNumber: mobileNumber.trim(),
+          iban: iban.trim(),
+        };
+      }
+
+      const result = await matchesApi.create({
+        requestId: item.id,
+        foreignAccounts,
+        receiverInfo,
       });
 
-      try {
-        await matchesApi.create({ requestId: item.id });
-        onMatchCreated?.();
-      } catch (matchErr) {
-        if (matchErr?.status === 404) {
-          notificationBus.emit({ type: 'error', message: 'این درخواست توسط کاربر دیگری پیش گرفته شد. لطفاً درخواست دیگری انتخاب کنید.' });
-          onClose?.();
-        }
+      onMatchCreated?.(result?.matchId);
+    } catch (err) {
+      const status = err?.status;
+      const msg = (err?.message ?? '').toLowerCase();
+
+      if (status === 404) {
+        onRequestGone?.();
+        onClose?.();
+      } else if (status === 403) {
+        if (msg.includes('kyc')) onKycNeeded?.();
+      } else if (status === 400) {
+        if (msg.includes('foreignaccounts')) setMode('foreignAccounts');
+        else if (msg.includes('receiverinfo')) setMode('receiverInfo');
       }
-    } catch (createErr) {
-      if ((createErr?.message ?? '').toLowerCase().includes('kyc')) onKycNeeded?.();
     } finally {
       setSubmitting(false);
     }
   };
 
-  const currSym = CURRENCY_SYMBOL[typeof item.currency === 'number' ? item.currency : (CURRENCY_ENUM[item.currency] ?? 0)] ?? '€';
+  const currSym = CURRENCY_SYMBOL[itemCurrency] ?? '€';
+
+  const title = mode === 'confirm' ? 'Confirm Match'
+    : mode === 'foreignAccounts' ? 'Your Account Details'
+    : 'Receiver Info';
+
+  const subtitle = mode === 'confirm'
+    ? 'آیا می‌خواهید با این درخواست مچ شوید؟'
+    : mode === 'foreignAccounts'
+    ? 'Choose a payment method and enter your account details'
+    : "Enter the Iranian receiver's account details";
 
   return (
     <div className="sheet-backdrop" onClick={!submitting ? onClose : undefined}>
-      <div className="sheet exchange-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="sheet exchange-modal" onClick={e => e.stopPropagation()}>
         <div className="sheet__handle" />
-        <div className="sheet__title">{isCaseA ? 'Your Account Details' : 'Select Receiver'}</div>
-        <p className="sheet__sub">
-          {isCaseA ? 'Choose a payment method and enter your account details' : 'Select the Iranian account to receive the money'}
-        </p>
+        <div className="sheet__title">{title}</div>
+        <p className="sheet__sub">{subtitle}</p>
 
         <div className="exchange-summary">
           <div className="exchange-summary__row">
@@ -678,69 +708,76 @@ function MatchAccountModal({ item, myDirection, onClose, onMatchCreated, onKycNe
           </div>
         </div>
 
-        <div className="exchange-modal__section">
-          <label className="input-label">Payment Method</label>
-          <div className="method-chips">
-            {availableMethods.map((m) => (
-              <button key={m} type="button"
-                className={`method-chip ${chosenMethod === m ? 'method-chip--active' : ''}`}
-                onClick={() => { setChosenMethod(m); setForeignFields({}); }} aria-pressed={chosenMethod === m}>
-                {m}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {isCaseA ? (
-          chosenMethod && (
+        {mode === 'foreignAccounts' && (
+          <>
             <div className="exchange-modal__section">
-              {fields.map((f) => (
-                <div key={f.id} className="receiver-form__field">
-                  <label className="input-label">
-                    {f.label}{f.optional && <span className="input-label__hint">optional</span>}
-                  </label>
-                  <input className="input" type={f.type} placeholder={f.placeholder}
-                    value={foreignFields[f.id] ?? ''}
-                    onChange={(e) => setForeignFields((prev) => ({ ...prev, [f.id]: e.target.value }))} />
-                </div>
-              ))}
-            </div>
-          )
-        ) : receiversLoading ? (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
-            <div className="kyc-loading-spinner">
-              <svg width="40" height="40" viewBox="0 0 52 52" fill="none">
-                <circle cx="26" cy="26" r="22" stroke="var(--amber)" strokeOpacity="0.15" strokeWidth="4" />
-                <path d="M26 4a22 22 0 0 1 22 22" stroke="var(--amber-deep)" strokeWidth="4" strokeLinecap="round" />
-              </svg>
-            </div>
-          </div>
-        ) : receivers.length === 0 ? (
-          <div className="exchange-modal__section">
-            <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 14, padding: '16px 0' }}>
-              No receiver accounts found. Please add one first.
-            </p>
-          </div>
-        ) : (
-          <div className="exchange-modal__section">
-            <div className="rcv-list">
-              {receivers.map((r) => {
-                const isSel = selectedReceiverId === r.id;
-                return (
-                  <button key={r.id} type="button" className={`rcv-item${isSel ? ' rcv-item--selected' : ''}`}
-                    onClick={() => setSelectedReceiverId(r.id)}>
-                    <span className="rcv-item__radio" aria-hidden="true">
-                      {isSel
-                        ? <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8.25" stroke="currentColor" strokeWidth="1.5"/><circle cx="9" cy="9" r="4.5" fill="currentColor"/></svg>
-                        : <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8.25" stroke="currentColor" strokeWidth="1.5"/></svg>}
-                    </span>
-                    <span className="rcv-item__info">
-                      <span className="rcv-item__name">{r.firstName} {r.lastName}</span>
-                      <span className="rcv-item__iban">{r.iban}</span>
-                    </span>
+              <label className="input-label">Payment Method</label>
+              <div className="method-chips">
+                {availableMethods.map(m => (
+                  <button key={m} type="button"
+                    className={`method-chip ${chosenMethod === m ? 'method-chip--active' : ''}`}
+                    onClick={() => { setChosenMethod(m); setForeignFields({}); }}
+                    aria-pressed={chosenMethod === m}>
+                    {m}
                   </button>
-                );
-              })}
+                ))}
+              </div>
+            </div>
+            {chosenMethod && (
+              <div className="exchange-modal__section">
+                {fields.map(f => (
+                  <div key={f.id} className="receiver-form__field">
+                    <label className="input-label">
+                      {f.label}{f.optional && <span className="input-label__hint">optional</span>}
+                    </label>
+                    <input className="input" type={f.type} placeholder={f.placeholder}
+                      value={foreignFields[f.id] ?? ''}
+                      onChange={e => setForeignFields(prev => ({ ...prev, [f.id]: e.target.value }))} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {mode === 'receiverInfo' && (
+          <div className="exchange-modal__section">
+            <div className="receiver-form__field">
+              <label className="input-label">First Name</label>
+              <input className="input" type="text" placeholder="علی"
+                value={firstName} onChange={e => setFirstName(e.target.value)} />
+            </div>
+            <div className="receiver-form__field">
+              <label className="input-label">Last Name</label>
+              <input className="input" type="text" placeholder="محمدی"
+                value={lastName} onChange={e => setLastName(e.target.value)} />
+            </div>
+            <div className="receiver-form__field">
+              <label className="input-label">
+                National ID <span className="input-label__hint">10 digits</span>
+              </label>
+              <input className="input" type="text" inputMode="numeric" placeholder="1234567890" maxLength={10}
+                value={nationalId}
+                onChange={e => setNationalId(e.target.value.replace(/\D/g, '').slice(0, 10))} />
+              {nationalId && !nationalIdValid && (
+                <span className="exchange-modal__hint" style={{ color: 'var(--rose-deep)' }}>باید دقیقاً ۱۰ رقم باشد</span>
+              )}
+            </div>
+            <div className="receiver-form__field">
+              <label className="input-label">Mobile Number</label>
+              <input className="input" type="tel" placeholder="09121234567"
+                value={mobileNumber} onChange={e => setMobileNumber(e.target.value)} />
+            </div>
+            <div className="receiver-form__field">
+              <label className="input-label">
+                IBAN <span className="input-label__hint">IR + 24 digits</span>
+              </label>
+              <input className="input" type="text" placeholder="IR123456789012345678901234" maxLength={26}
+                value={iban}
+                onChange={e => setIban(e.target.value.toUpperCase())} />
+              {iban && !ibanValid && (
+                <span className="exchange-modal__hint" style={{ color: 'var(--rose-deep)' }}>شبا باید با IR شروع شود و ۲۶ کاراکتر باشد</span>
+              )}
             </div>
           </div>
         )}
@@ -748,7 +785,7 @@ function MatchAccountModal({ item, myDirection, onClose, onMatchCreated, onKycNe
         <div className="sheet-actions">
           <button type="button" className="btn btn--ghost" onClick={onClose} disabled={submitting}>Cancel</button>
           <button type="button" className="btn btn--primary" disabled={!isValid || submitting} onClick={handleSubmit}>
-            {submitting ? 'Matching…' : 'Confirm & Match'}
+            {submitting ? 'Creating…' : mode === 'confirm' ? 'Confirm' : 'Confirm & Match'}
           </button>
         </div>
       </div>
@@ -782,7 +819,7 @@ function DirectMatchModal({ item, itemType, onClose, onMatched }) {
     if (!selected || matching) return;
     setMatching(true);
     try {
-      await matchesApi.create({ requestId: selected.requestId });
+      await matchesApi.create({ requestId: selected.requestId, foreignAccounts: null, receiverInfo: null });
       onMatched?.();
     } catch (err) {
       if (err?.status === 404) {
@@ -2542,7 +2579,7 @@ function fmtDate(dateStr) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-const MatchCard = memo(function MatchCard({ item, type, ratio, onTap }) {
+const MatchCard = memo(function MatchCard({ item, type, ratio, onTap, onCreateMatch }) {
   const isReceived = type === 'received';
   const sign = isReceived ? '+' : '−';
   const amountColor = isReceived ? 'var(--leaf-deep)' : 'var(--amber-deep)';
@@ -2604,10 +2641,17 @@ const MatchCard = memo(function MatchCard({ item, type, ratio, onTap }) {
       <div className="matching-card__actions">
         <button
           type="button"
-          className="btn btn--primary btn--sm matching-card__action-btn"
+          className="btn btn--ghost btn--sm matching-card__action-btn"
           onClick={(e) => { e.stopPropagation(); onTap(item, type); }}
         >
-          View &amp; Match
+          Details
+        </button>
+        <button
+          type="button"
+          className="btn btn--primary btn--sm matching-card__action-btn"
+          onClick={(e) => { e.stopPropagation(); onCreateMatch ? onCreateMatch() : onTap(item, type); }}
+        >
+          Create Match
         </button>
       </div>
     </article>
@@ -2793,7 +2837,7 @@ const MatchingPage = memo(function MatchingPage({ matches, onUploadScreenshot, o
   );
 });
 
-const HomeSearch = memo(function HomeSearch({ onMatchTap }) {
+const HomeSearch = memo(function HomeSearch({ onMatchTap, onDirectCreateMatch }) {
   const [direction, setDirection] = useState('send');
   const [currency, setCurrency] = useState('EUR');
   const [amount, setAmount] = useState('');
@@ -2980,7 +3024,14 @@ const HomeSearch = memo(function HomeSearch({ onMatchTap }) {
             <span className="match-results__sub">±50% · {currencySymbol}{amountNum.toLocaleString()}</span>
           </div>
           {searchResults.map((item) => (
-            <MatchCard key={item.id} item={item} type={matchType} ratio={item.ratio} onTap={() => onMatchTap(item, direction)} />
+            <MatchCard
+              key={item.id}
+              item={item}
+              type={matchType}
+              ratio={item.ratio}
+              onTap={() => onMatchTap(item, direction)}
+              onCreateMatch={onDirectCreateMatch ? () => onDirectCreateMatch(item, direction) : null}
+            />
           ))}
         </div>
       )}
@@ -3197,15 +3248,24 @@ export default function App() {
   }, [browseDetail]);
   const handleBrowseClose = useCallback(() => setBrowseDetail(null), []);
   const handleMatchAccountClose = useCallback(() => setMatchAccount(null), []);
-  const handleMatchCreated = useCallback(() => {
+  const handleMatchCreated = useCallback((matchId) => {
     setMatchAccount(null);
     setActivePage('matches');
     loadMatches();
-  }, [loadMatches]);
+    loadSentRequests();
+    loadReceivedRequests();
+  }, [loadMatches, loadSentRequests, loadReceivedRequests]);
   const handleKycNeeded = useCallback(() => {
     setMatchAccount(null);
     setBrowseDetail(null);
     setActivePage('identity');
+  }, []);
+  const handleRequestGone = useCallback(() => {
+    setMatchAccount(null);
+    setBrowseDetail(null);
+  }, []);
+  const handleDirectCreateMatch = useCallback((item, direction) => {
+    setMatchAccount({ item, direction });
   }, []);
   const handleDirectMatch = useCallback((item, type) => setDirectMatch({ item, itemType: type }), []);
   const handleDirectMatchClose = useCallback(() => setDirectMatch(null), []);
@@ -3298,7 +3358,7 @@ export default function App() {
       onExchange={handleExchangeOpen}
     >
       {activePage === 'home' && (
-        <HomeSearch onMatchTap={handleMatchTap} />
+        <HomeSearch onMatchTap={handleMatchTap} onDirectCreateMatch={handleDirectCreateMatch} />
       )}
 
       {activePage === 'identity' && (
@@ -3360,9 +3420,12 @@ export default function App() {
         <MatchAccountModal
           item={matchAccount.item}
           myDirection={matchAccount.direction}
+          userSentRequests={sentRequests}
+          userReceivedRequests={receivedRequests}
           onClose={handleMatchAccountClose}
           onMatchCreated={handleMatchCreated}
           onKycNeeded={handleKycNeeded}
+          onRequestGone={handleRequestGone}
         />
       )}
       {directMatch && (
