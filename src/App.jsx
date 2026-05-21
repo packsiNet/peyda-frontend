@@ -975,7 +975,7 @@ function ExchangeModal({ onClose, onCreated }) {
   const [rcvIban, setRcvIban] = useState('');
 
   // API state
-  const [eurRates, setEurRates] = useState(null);
+  const [allRates, setAllRates] = useState([]);
   const [previewData, setPreviewData] = useState(null);
   const [savedReceivers, setSavedReceivers] = useState([]);
   const [submitting, setSubmitting] = useState(false);
@@ -983,10 +983,9 @@ function ExchangeModal({ onClose, onCreated }) {
 
   // Load exchange rates on mount
   useEffect(() => {
-    exchangeRatesApi.getAll().then((data) => {
-      const eur = data?.find?.((r) => r.currency === 'EUR');
-      if (eur) setEurRates(eur);
-    }).catch(() => {});
+    exchangeRatesApi.getAll()
+      .then((data) => { if (Array.isArray(data)) setAllRates(data); })
+      .catch(() => {});
   }, []);
 
   // Load receivers when reaching step 2
@@ -1025,8 +1024,9 @@ function ExchangeModal({ onClose, onCreated }) {
     return () => clearTimeout(timer);
   }, [amount, currency, direction, selectedRate, proposedAmount, showCustomInput, methods.length]);
 
-  const bonbastRate = eurRates?.marketRate  ?? BONBAST_RATE;
-  const urgentRate  = eurRates?.instantRate ?? URGENT_RATE;
+  const currentRates = allRates.find(r => r.currency === (CURRENCY_ENUM[currency] ?? 0));
+  const bonbastRate = currentRates?.marketRate  ?? BONBAST_RATE;
+  const urgentRate  = currentRates?.instantRate ?? URGENT_RATE;
 
   const toggleMethod = (m) =>
     setMethods((prev) => (prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]));
