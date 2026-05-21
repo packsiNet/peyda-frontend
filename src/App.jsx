@@ -2638,7 +2638,7 @@ const MatchCard = memo(function MatchCard({ item, type, ratio, onTap, onCreateMa
         </div>
         <span className={`match-badge ${matchInfo.cls}`}>{matchInfo.label}</span>
       </div>
-      <div className="matching-card__actions">
+      {/* <div className="matching-card__actions">
         <button
           type="button"
           className="btn btn--ghost btn--sm matching-card__action-btn"
@@ -2653,7 +2653,7 @@ const MatchCard = memo(function MatchCard({ item, type, ratio, onTap, onCreateMa
         >
           Create Match
         </button>
-      </div>
+      </div> */}
     </article>
   );
 });
