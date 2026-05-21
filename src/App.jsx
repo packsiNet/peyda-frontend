@@ -187,7 +187,7 @@ const METHOD_META = {
   SEPA:    { label: 'SEPA',    country: 'EU' },
 };
 
-const TxTile = memo(function TxTile({ item, type, onTap, onCreateMatch }) {
+const TxTile = memo(function TxTile({ item, type, onTap }) {
   const isReceived = type === 'received';
   const sign = isReceived ? '+' : '−';
   const firstMethod = item.methods[0] ?? null;
@@ -216,12 +216,6 @@ const TxTile = memo(function TxTile({ item, type, onTap, onCreateMatch }) {
 
       <footer className="tx-tile__meta tx-tile__meta--abs">
         <span className="tx-tile__country">{meta.country}</span>
-        <button
-          type="button"
-          className="tx-tile__match-btn"
-          onClick={(e) => { e.stopPropagation(); onCreateMatch?.(item, type); }}
-          aria-label="Create match"
-        >Match</button>
       </footer>
     </article>
   );
@@ -282,7 +276,7 @@ const SortBar = memo(function SortBar({ sort, onSort, layout, onToggleLayout }) 
   );
 });
 
-const TxListItem = memo(function TxListItem({ item, type, onTap, onCreateMatch }) {
+const TxListItem = memo(function TxListItem({ item, type, onTap }) {
   const isReceived = type === 'received';
   const sign = isReceived ? '+' : '−';
   const amountColor = isReceived ? 'var(--leaf-deep)' : 'var(--amber-deep)';
@@ -347,20 +341,11 @@ const TxListItem = memo(function TxListItem({ item, type, onTap, onCreateMatch }
           );
         })()}
       </div>
-      <div className="matching-card__actions">
-        <button
-          type="button"
-          className="btn btn--primary btn--sm matching-card__action-btn"
-          onClick={(e) => { e.stopPropagation(); onCreateMatch?.(item, type); }}
-        >
-          Create Match
-        </button>
-      </div>
     </article>
   );
 });
 
-const TransactionListPage = memo(function TransactionListPage({ data, type, sort, layout, onSort, onLayoutToggle, onTap, onCreateMatch, loading }) {
+const TransactionListPage = memo(function TransactionListPage({ data, type, sort, layout, onSort, onLayoutToggle, onTap, loading }) {
   const sorted = useMemo(() => {
     if (!sort) return data;
     return [...data].sort((a, b) => sort === 'highest' ? b.amount - a.amount : a.amount - b.amount);
@@ -402,14 +387,14 @@ const TransactionListPage = memo(function TransactionListPage({ data, type, sort
           <div className="p2p-tiles-wrap p2p-scroll">
             <div className="p2p-tiles" role="list">
               {sorted.map((item) => (
-                <TxTile key={item.id} item={item} type={type} onTap={onTap} onCreateMatch={onCreateMatch} />
+                <TxTile key={item.id} item={item} type={type} onTap={onTap} />
               ))}
             </div>
           </div>
         ) : (
           <div className="p2p-list-wrap p2p-scroll" role="list">
             {sorted.map((item) => (
-              <TxListItem key={item.id} item={item} type={type} onTap={onTap} onCreateMatch={onCreateMatch} />
+              <TxListItem key={item.id} item={item} type={type} onTap={onTap} />
             ))}
           </div>
         )}
@@ -3337,7 +3322,6 @@ export default function App() {
           onSort={handleSentSort}
           onLayoutToggle={handleSentLayoutToggle}
           onTap={handleTap}
-          onCreateMatch={handleDirectMatch}
           loading={sentLoading}
         />
       )}
@@ -3350,7 +3334,6 @@ export default function App() {
           onSort={handleReceivedSort}
           onLayoutToggle={handleReceivedLayoutToggle}
           onTap={handleTap}
-          onCreateMatch={handleDirectMatch}
           loading={receivedLoading}
         />
       )}
