@@ -962,6 +962,7 @@ function prefixPadding(symbol) {
 
 function ExchangeModal({ onClose, onCreated }) {
   const t = useT();
+  const { lang } = useLang();
   const [step, setStep] = useState(1);
 
   // Step 1 state
@@ -971,7 +972,6 @@ function ExchangeModal({ onClose, onCreated }) {
   const [methods, setMethods] = useState([]);
   const [proposedAmount, setProposedAmount] = useState('');
   const [selectedRate, setSelectedRate] = useState(null);
-  const [showCustomInput, setShowCustomInput] = useState(false);
 
   // Step 2 state — send direction (Iranian receiver)
   const [showNewReceiverForm, setShowNewReceiverForm] = useState(false);
@@ -1014,12 +1014,8 @@ function ExchangeModal({ onClose, onCreated }) {
 
     const rateType = selectedRate === 'bonbast' ? 'Market'
       : selectedRate === 'urgent'  ? 'Instant'
-      : showCustomInput            ? 'Custom'
       : null;
     if (!rateType) { setPreviewData(null); return; }
-
-    const customRateVal = rateType === 'Custom' ? parseFloat(proposedAmount) || null : null;
-    if (rateType === 'Custom' && !customRateVal) { setPreviewData(null); return; }
 
     const timer = setTimeout(async () => {
       try {
@@ -1028,13 +1024,13 @@ function ExchangeModal({ onClose, onCreated }) {
           currency: CURRENCY_ENUM[currency],
           amount: amtNum,
           rateType: RATE_TYPE_ENUM[rateType],
-          customRate: customRateVal,
+          customRate: null,
         });
         setPreviewData(result);
       } catch { setPreviewData(null); }
     }, 400);
     return () => clearTimeout(timer);
-  }, [amount, currency, direction, selectedRate, proposedAmount, showCustomInput, methods.length]);
+  }, [amount, currency, direction, selectedRate, methods.length]);
 
   const currentRates = allRates.find(r => r.currency === (CURRENCY_ENUM[currency] ?? 0));
   const bonbastRate = currentRates?.marketRate  ?? BONBAST_RATE;
@@ -1055,18 +1051,7 @@ function ExchangeModal({ onClose, onCreated }) {
     }
   };
 
-  const handleShowCustom = () => {
-    setShowCustomInput(true);
-    setSelectedRate(null);
-    setProposedAmount('');
-  };
-
-  const handleHideCustom = () => {
-    setShowCustomInput(false);
-    setProposedAmount('');
-  };
-
-  const step1Valid = !!amount && methods.length > 0;
+  const step1Valid = !!amount && methods.length > 0 && !!selectedRate;
 
   const foreignValid = methods.every(m => {
     const fields = FOREIGN_ACCOUNT_FIELDS[m] ?? [];
@@ -1096,11 +1081,9 @@ function ExchangeModal({ onClose, onCreated }) {
     const amtNum = parseFloat(amount);
     const rateType = selectedRate === 'bonbast' ? 'Market'
       : selectedRate === 'urgent'  ? 'Instant'
-      : showCustomInput            ? 'Custom'
       : null;
-    const customRateVal = rateType === 'Custom' ? parseFloat(proposedAmount) || null : null;
 
-    if (amtNum && rateType && (rateType !== 'Custom' || customRateVal)) {
+    if (amtNum && rateType) {
       setPreviewLoading(true);
       try {
         const result = await requestsApi.preview({
@@ -1108,7 +1091,7 @@ function ExchangeModal({ onClose, onCreated }) {
           currency: CURRENCY_ENUM[currency],
           amount: amtNum,
           rateType: RATE_TYPE_ENUM[rateType],
-          customRate: customRateVal,
+          customRate: null,
         });
         setPreviewData(result);
       } catch {
@@ -1137,15 +1120,13 @@ function ExchangeModal({ onClose, onCreated }) {
         });
         receiverId = created?.id;
       }
-      const rateTypeStr = selectedRate === 'bonbast' ? 'Market'
-        : selectedRate === 'urgent'  ? 'Instant'
-        : 'Custom';
+      const rateTypeStr = selectedRate === 'bonbast' ? 'Market' : 'Instant';
       const createPayload = {
         type: REQUEST_TYPE_ENUM[direction],
         currency: CURRENCY_ENUM[currency],
         amount: parseFloat(amount),
         rateType: RATE_TYPE_ENUM[rateTypeStr],
-        customRate: rateTypeStr === 'Custom' ? parseFloat(proposedAmount) || null : null,
+        customRate: null,
         paymentMethods: methods.map((m) => PAYMENT_METHOD_ENUM[m]),
         ...(direction === 'send'
           ? { receiverId }
@@ -1261,92 +1242,39 @@ function ExchangeModal({ onClose, onCreated }) {
             </div>
 
             <div className="exchange-modal__section">
-              <div className="price-row">
-                <div className={`price-row__slider ${showCustomInput ? 'price-row__slider--shifted' : ''}`}>
-
-                  <div className="price-row__panel">
-                    <div className="price-col">
-                      <p className="price-col__label">{t('exchange.bonbastPrice')}</p>
-                      <button
-                        type="button"
-                        className={`price-col__card ${selectedRate === 'bonbast' ? 'price-col__card--bonbast' : ''}`}
-                        onClick={() => handleRateSelect('bonbast', bonbastRate)}
-                        aria-pressed={selectedRate === 'bonbast'}
-                      >
-                        <span className="price-col__check" aria-hidden="true">
-                          {selectedRate === 'bonbast'
-                            ? <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M2 5.5l2.5 2.5L9 3" /></svg>
-                            : <span className="price-col__dot" />}
-                        </span>
-                        <span className="price-col__value">{bonbastRate.toLocaleString()}</span>
-                      </button>
-                    </div>
-
-                    <div className="price-col">
-                      <p className="price-col__label">{t('exchange.urgentPrice')}</p>
-                      <button
-                        type="button"
-                        className={`price-col__card ${selectedRate === 'urgent' ? 'price-col__card--urgent' : ''}`}
-                        onClick={() => handleRateSelect('urgent', urgentRate)}
-                        aria-pressed={selectedRate === 'urgent'}
-                      >
-                        <span className="price-col__check" aria-hidden="true">
-                          {selectedRate === 'urgent'
-                            ? <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M2 5.5l2.5 2.5L9 3" /></svg>
-                            : <span className="price-col__dot" />}
-                        </span>
-                        <span className="price-col__value">{urgentRate.toLocaleString()}</span>
-                      </button>
-                    </div>
-
-                    <div className="price-col">
-                      <p className="price-col__label">&nbsp;</p>
-                      <button
-                        type="button"
-                        className="price-col__card price-col__card--custom"
-                        onClick={handleShowCustom}
-                      >
-                        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M6.5 2v9M2 6.5h9" />
-                        </svg>
-                        {t('exchange.custom')}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="price-row__panel">
-                    <div className="price-col" style={{ flex: 1 }}>
-                      <p className="price-col__label">
-                        {t('exchange.proposedAmount')}
-                        <span className="input-label__hint" style={{ marginLeft: 4 }}>{t('exchange.rial')}</span>
-                      </p>
-                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        <button
-                          type="button"
-                          className="price-col__back-btn"
-                          onClick={handleHideCustom}
-                          aria-label="Back"
-                        >
-                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M9 2L4 7l5 5" />
-                          </svg>
-                        </button>
-                        <div className="input-wrap" style={{ flex: 1 }}>
-                          <input
-                            className="input input--prefixed price-col__input"
-                            type="number"
-                            placeholder="0"
-                            inputMode="numeric"
-                            min="0"
-                            value={proposedAmount}
-                            onChange={(e) => setProposedAmount(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                </div>
+              <div className="rate-options">
+                <button
+                  type="button"
+                  className={`rate-option${selectedRate === 'bonbast' ? ' rate-option--active' : ''}`}
+                  onClick={() => handleRateSelect('bonbast', bonbastRate)}
+                  aria-pressed={selectedRate === 'bonbast'}
+                >
+                  <span className="rate-option__radio" aria-hidden="true">
+                    {selectedRate === 'bonbast'
+                      ? <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9.25" stroke="currentColor" strokeWidth="1.5"/><circle cx="10" cy="10" r="5" fill="currentColor"/></svg>
+                      : <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9.25" stroke="currentColor" strokeWidth="1.5"/></svg>}
+                  </span>
+                  <span className="rate-option__body">
+                    <span className="rate-option__label">{lang === 'fa' ? 'منصفانه' : 'Fair'}</span>
+                    <span className="rate-option__desc">{lang === 'fa' ? '۱٪ تا ۳٪ کارمزد' : '1% – 3% fee'}</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className={`rate-option rate-option--urgent${selectedRate === 'urgent' ? ' rate-option--active' : ''}`}
+                  onClick={() => handleRateSelect('urgent', urgentRate)}
+                  aria-pressed={selectedRate === 'urgent'}
+                >
+                  <span className="rate-option__radio" aria-hidden="true">
+                    {selectedRate === 'urgent'
+                      ? <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9.25" stroke="currentColor" strokeWidth="1.5"/><circle cx="10" cy="10" r="5" fill="currentColor"/></svg>
+                      : <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9.25" stroke="currentColor" strokeWidth="1.5"/></svg>}
+                  </span>
+                  <span className="rate-option__body">
+                    <span className="rate-option__label">{lang === 'fa' ? 'فوری' : 'Urgent'}</span>
+                    <span className="rate-option__desc">{lang === 'fa' ? '۳٪ تا ۶٪، حداکثر ۱ ساعت' : '3% – 6%, max 1 hour'}</span>
+                  </span>
+                </button>
               </div>
             </div>
 
@@ -1940,34 +1868,6 @@ const AppTabBar = memo(function AppTabBar({ activePage, onNavigate, onProfile, o
 });
 
 function AppShell({ header, children, activePage, onNavigate, onProfile, onExchange, exchangeOpen, matchCount }) {
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
-
-  useEffect(() => {
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1;
-    if (!isMobile) return;
-
-    const INPUT_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
-
-    function onFocusIn(e) {
-      if (INPUT_TAGS.has(e.target?.tagName)) setKeyboardVisible(true);
-    }
-    function onFocusOut() {
-      // Delay so focus moving between two inputs doesn't flicker
-      setTimeout(() => {
-        if (!INPUT_TAGS.has(document.activeElement?.tagName)) {
-          setKeyboardVisible(false);
-        }
-      }, 100);
-    }
-
-    document.addEventListener('focusin', onFocusIn);
-    document.addEventListener('focusout', onFocusOut);
-    return () => {
-      document.removeEventListener('focusin', onFocusIn);
-      document.removeEventListener('focusout', onFocusOut);
-    };
-  }, []);
-
   return (
     <>
       <BgOrbs />
@@ -1976,8 +1876,7 @@ function AppShell({ header, children, activePage, onNavigate, onProfile, onExcha
         <div className="app-content">
           {children}
         </div>
-        {!keyboardVisible && (
-          <AppTabBar
+        <AppTabBar
             activePage={activePage}
             onNavigate={onNavigate}
             onProfile={onProfile}
@@ -1985,7 +1884,6 @@ function AppShell({ header, children, activePage, onNavigate, onProfile, onExcha
             exchangeOpen={exchangeOpen}
             matchCount={matchCount}
           />
-        )}
       </div>
     </>
   );
@@ -3084,6 +2982,14 @@ function mapRequest(r) {
 export default function App() {
   const { lang, toggleLang } = useLang();
   const t = useT();
+
+  // Lock initial viewport height so modals don't shrink when keyboard opens
+  useLayoutEffect(() => {
+    const set = () => document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
+    set();
+    window.addEventListener('orientationchange', set);
+    return () => window.removeEventListener('orientationchange', set);
+  }, []);
   const [activePage, setActivePage] = useState('home');
   const [detail, setDetail] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
