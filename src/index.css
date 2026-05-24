@@ -1672,7 +1672,7 @@ body::after {
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 50;
+  z-index: 65;
   width: 100%;
   overflow: visible;
   background: rgba(255, 246, 232, 0.97);
@@ -1688,10 +1688,10 @@ body::after {
   align-items: flex-end;
   justify-content: space-around;
   /* padding: 10px 4px 8px; */
-  padding-bottom: calc(8px + var(--tg-inset-bottom));
+  padding-bottom: calc(10px + var(--tg-inset-bottom));
   padding-left:  calc(4px + var(--tg-inset-left));
   padding-right: calc(4px + var(--tg-inset-right));
-  min-height: 70px;
+  min-height: 80px;
 }
 
 .p2p-tab {
@@ -1769,39 +1769,202 @@ body::after {
   pointer-events: none;
 }
 
-/* ── Exchange (center elevated) ───────────────────────────────────── */
+/* ── Exchange Toggle (center elevated) ────────────────────────────── */
 
 .p2p-tab--exchange {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
+  justify-content: flex-end;
+  /* Fixed height = same as other tabs so it doesn't stretch the bar */
+  height: 47px;
+  overflow: visible;
+  position: relative;
   cursor: default;
   background: none;
   border: none;
   padding: 0 6px;
-  transform: translateY(-18px);
 }
 
-.p2p-tab__exchange-btn {
-  width: 58px;
-  height: 58px;
-  border-radius: 50%;
+/* ── Track / housing ── */
+.p2p-exchange-toggle {
+  /* Absolute so it floats above the bar without affecting its height */
+  position: absolute;
+  bottom: 17px;   /* 12 px label + 5 px gap */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 38px;
+  height: 76px;
+  border-radius: 19px;
   border: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(145deg, #6AADFF 0%, #2B71E8 55%, #1A54C8 100%);
   cursor: pointer;
+  padding: 0;
+  /* 3D chrome housing — layered gradients for depth */
+  background:
+    radial-gradient(ellipse 92% 30% at 50% 0%,   rgba(255,255,255,0.36) 0%, transparent 100%),
+    radial-gradient(ellipse 60% 18% at 18% 50%,  rgba(255,255,255,0.10) 0%, transparent 100%),
+    radial-gradient(ellipse 80% 16% at 50% 100%,  rgba(255,255,255,0.10) 0%, transparent 100%),
+    linear-gradient(180deg, #1e1840 0%, #0e0a22 22%, #080616 52%, #0e0a22 80%, #1e1840 100%);
   box-shadow:
-    0 0 0 5px rgba(255, 246, 232, 0.97),
-    0 8px 22px rgba(37, 99, 235, 0.40),
-    0 0 36px rgba(100, 170, 255, 0.20);
-  transition: transform 0.18s ease, box-shadow 0.22s ease;
+    /* Chrome rim — sharp top edge, faint bottom */
+    0 0 0 1px  rgba(255,255,255,0.26),
+    0 0 0 2px  rgba(0,0,0,0.70),
+    /* Deep carved groove with strong ambient occlusion */
+    inset 0 10px 30px rgba(0,0,0,0.98),
+    inset 0  3px  8px rgba(0,0,0,0.90),
+    inset 0 -4px 10px rgba(255,255,255,0.05),
+    inset 0 -1px  2px rgba(255,255,255,0.16),
+    /* Strong 3D outer drop shadow */
+    0 16px 44px rgba(0,0,0,0.85),
+    0  6px 16px rgba(0,0,0,0.65),
+    0  2px  4px rgba(0,0,0,0.50);
+  transition: box-shadow 0.40s ease;
+  overflow: visible;
   -webkit-tap-highlight-color: transparent;
 }
 
-.p2p-tab__exchange-btn:active { transform: scale(0.93); }
+/* Thin center guide-rail inside the groove */
+.p2p-exchange-toggle::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1px;
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(255,255,255,0.07) 20%,
+    rgba(255,255,255,0.11) 50%,
+    rgba(255,255,255,0.07) 80%,
+    transparent 100%);
+  border-radius: 1px;
+  pointer-events: none;
+}
+
+/* Warm inner glow when ON */
+.p2p-exchange-toggle::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 19px;
+  background: linear-gradient(180deg, rgba(255,200,55,0.15) 0%, transparent 45%);
+  opacity: 0;
+  transition: opacity 0.40s ease;
+  pointer-events: none;
+}
+
+/* ON state — golden aura around the housing */
+.p2p-exchange-toggle.is-on {
+  box-shadow:
+    0 0 0 1px  rgba(255,210,60,0.45),
+    0 0 0 2px  rgba(0,0,0,0.45),
+    inset 0 6px 20px rgba(0,0,0,0.75),
+    inset 0 2px  6px rgba(0,0,0,0.65),
+    inset 0 -3px 8px rgba(255,210,60,0.08),
+    0 0 22px rgba(255,185,35,0.50),
+    0 0 55px rgba(255,160,20,0.22),
+    0 10px 32px rgba(0,0,0,0.55);
+}
+
+.p2p-exchange-toggle.is-on::after { opacity: 1; }
+
+/* ── Metal orb / power button ── */
+.p2p-exchange-toggle__orb {
+  position: absolute;
+  left: 5px;
+  right: 5px;
+  height: 28px;   /* 38-5-5 = 28 → perfect circle */
+  border-radius: 50%;
+  /* OFF: polished chrome sphere — cool violet-steel */
+  background:
+    radial-gradient(circle at 28% 20%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 40%),
+    radial-gradient(circle at 62% 12%, rgba(210,200,255,0.50) 0%, rgba(210,200,255,0) 38%),
+    radial-gradient(circle at 72% 80%, rgba(0,0,0,0.68)       0%, rgba(0,0,0,0)       50%),
+    linear-gradient(148deg,
+      #eee8ff 0%,
+      #cdbcf0 12%,
+      #9d88d8 28%,
+      #6a52b8 46%,
+      #4535a8 62%,
+      #2e1f88 78%,
+      #18105a 100%);
+  box-shadow:
+    /* Sharp specular rim — top-left bright */
+    inset  3px  4px 7px rgba(255,255,255,0.85),
+    inset -2px -3px 7px rgba(0,0,0,0.72),
+    /* Soft inner glow for depth */
+    inset 0 0 10px rgba(80,60,180,0.28),
+    /* Strong convex shadow — key 3D cue */
+    0 10px 28px rgba(0,0,0,0.92),
+    0  4px 12px rgba(0,0,0,0.72),
+    0  1px  4px rgba(0,0,0,0.55);
+  /* OFF: sits at bottom of track */
+  top: 43px;   /* 76-28-5 = 43 */
+  transition:
+    top 0.40s cubic-bezier(0.34, 1.28, 0.64, 1),
+    background   0.38s ease,
+    box-shadow   0.38s ease;
+}
+
+/* Power symbol — OFF (dim) */
+.p2p-exchange-toggle__orb::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='rgba(255%2C255%2C255%2C0.28)' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3v7'/%3E%3Cpath d='M6.2 6.2a9 9 0 1 0 11.6 0'/%3E%3C/svg%3E")
+    center / 68% no-repeat;
+  pointer-events: none;
+  transition: filter 0.38s ease, background 0.38s ease;
+}
+
+/* ON state orb: hot polished-gold metal */
+.p2p-exchange-toggle.is-on .p2p-exchange-toggle__orb {
+  top: 5px;
+  background:
+    radial-gradient(circle at 28% 20%, rgba(255,255,220,0.96) 0%, rgba(255,245,0,0)    40%),
+    radial-gradient(circle at 60% 12%, rgba(255,230,120,0.55) 0%, rgba(255,230,120,0)  38%),
+    radial-gradient(circle at 72% 80%, rgba(140,55,0,0.65)    0%, rgba(0,0,0,0)         50%),
+    linear-gradient(148deg,
+      #fff8c0 0%,
+      #ffe050 12%,
+      #e8a000 28%,
+      #c07000 46%,
+      #8a4800 62%,
+      #5c2e00 78%,
+      #3a1c00 100%);
+  box-shadow:
+    /* Radiant amber corona */
+    0 0 16px rgba(255,195,35,1.00),
+    0 0 36px rgba(255,165,20,0.68),
+    0 0 70px rgba(255,140,10,0.30),
+    /* Strong convex shadow */
+    0 10px 28px rgba(0,0,0,0.75),
+    0  4px 12px rgba(0,0,0,0.55),
+    /* Chrome gold rim highlights */
+    inset  3px  4px 7px rgba(255,255,220,0.88),
+    inset -2px -3px 7px rgba(100,45,0,0.72);
+}
+
+/* Power symbol — ON (bright amber glow) */
+.p2p-exchange-toggle.is-on .p2p-exchange-toggle__orb::before {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='rgba(255%2C245%2C190%2C0.95)' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3v7'/%3E%3Cpath d='M6.2 6.2a9 9 0 1 0 11.6 0'/%3E%3C/svg%3E")
+    center / 68% no-repeat;
+  filter: drop-shadow(0 0 3px rgba(255,230,80,0.85));
+}
+
+/* Press feedback — only when not dragging (no translateY inline style) */
+.p2p-exchange-toggle:active .p2p-exchange-toggle__orb:not([style]) {
+  transform: scale(0.90);
+  transition:
+    transform 0.10s ease,
+    top        0.40s cubic-bezier(0.34, 1.28, 0.64, 1),
+    background 0.38s ease,
+    box-shadow 0.38s ease;
+}
 
 .p2p-tab__label--exchange {
   color: var(--ink-soft);
@@ -1821,7 +1984,7 @@ body::after {
   backdrop-filter: blur(12px);
   padding: 12px
     calc(12px + var(--tg-inset-right))
-    calc(12px + var(--tg-inset-bottom))
+    calc(90px + var(--tg-inset-bottom))
     calc(12px + var(--tg-inset-left));
   animation: backdrop-in 0.22s ease forwards;
 }
@@ -2206,7 +2369,7 @@ body::after {
 
 /* ── Exchange Modal ─────────────────────────────── */
 .exchange-modal {
-  max-height: 90dvh;
+  max-height: calc(100dvh - 84px);
   overflow-y: auto;
   scrollbar-width: none;
 }
