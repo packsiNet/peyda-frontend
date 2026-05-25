@@ -416,8 +416,15 @@ html[data-theme="dark"] .p2p-tab__label--exchange {
 
 /* ── Bottom sheet (frosted dark sheet) ──────────────────────────────────── */
 
-html[data-theme="dark"] .sheet-backdrop {
-  background: rgba(5, 10, 20, 0.72);
+/* Override backdrop color channels for dark theme — used by BottomSheet via CSS vars */
+html[data-theme="dark"] {
+  --sheet-bg-r: 5;
+  --sheet-bg-g: 10;
+  --sheet-bg-b: 20;
+  --sheet-bg-a-open: 0.72;
+}
+
+html[data-theme="dark"] .sheet-backdrop--open {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }

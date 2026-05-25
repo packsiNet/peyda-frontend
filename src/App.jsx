@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, memo, useCallback, useMemo } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, memo, useCallback, useMemo, createContext, useContext } from 'react';
 import { createPortal } from 'react-dom';
 import { useLang, useT, LANGUAGES } from './i18n/index.jsx';
 import { tokenStore } from './api/apiClient.js';
@@ -417,6 +417,155 @@ const TX_STATUS_DISPLAY = {
 
 const CURRENCY_SYMBOL = { 0: '€', 1: '$', 2: 'CA$' };
 
+// ── Bottom Sheet ─────────────────────────────────────────────
+// Single reusable component that handles:
+//   • Smooth open animation via CSS class toggle (double-rAF technique)
+//   • Gesture-driven close with momentum detection
+//   • visualViewport-based keyboard detection → hides tab bar
+//   • Backdrop opacity tied to drag progress
+
+const BottomSheetClose = createContext(null);
+
+function BottomSheet({ onClose, children, backdropDismissible = true, sheetClassName = '' }) {
+  const backdropRef = useRef(null);
+  const sheetRef = useRef(null);
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Drag tracking in refs — avoids re-renders during each touchmove
+  const isDragging = useRef(false);
+  const dragStartY = useRef(0);
+  const dragLastY = useRef(0);
+  const dragLastTime = useRef(0);
+  const dragVelocity = useRef(0); // px/s, positive = downward
+  const dragCurrentOffset = useRef(0);
+  const [dragOffset, setDragOffset] = useState(null); // null = CSS controls transform
+  const dragRafId = useRef(null);
+  const isClosingRef = useRef(false);
+
+  // Double-rAF: browser paints translateY(100%) before transition fires → no jank on open
+  useEffect(() => {
+    let id2;
+    const id1 = requestAnimationFrame(() => {
+      id2 = requestAnimationFrame(() => setIsOpen(true));
+    });
+    return () => { cancelAnimationFrame(id1); cancelAnimationFrame(id2); };
+  }, []);
+
+  // Animate out, then hand off to parent
+  const closeSheet = useCallback(() => {
+    if (isClosingRef.current) return;
+    isClosingRef.current = true;
+    setIsOpen(false);
+    setDragOffset(null);
+    backdropRef.current?.style.removeProperty('--sheet-bg-a');
+    setTimeout(onClose, 360);
+  }, [onClose]);
+
+  // Keyboard detection: hide tab bar via document class when soft keyboard opens
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const initialHeight = vv.height;
+    const onVVResize = () => {
+      document.documentElement.classList.toggle('keyboard-open', vv.height < initialHeight - 100);
+    };
+    vv.addEventListener('resize', onVVResize);
+    return () => {
+      vv.removeEventListener('resize', onVVResize);
+      document.documentElement.classList.remove('keyboard-open');
+    };
+  }, []);
+
+  // Scroll focused inputs into view after keyboard animation settles
+  useEffect(() => {
+    const el = sheetRef.current;
+    if (!el) return;
+    const onFocusIn = (e) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
+      }
+    };
+    el.addEventListener('focusin', onFocusIn);
+    return () => el.removeEventListener('focusin', onFocusIn);
+  }, []);
+
+  // ── Handle drag ─────────────────────────────────────────────
+  const onHandleTouchStart = useCallback((e) => {
+    isDragging.current = true;
+    dragStartY.current = e.touches[0].clientY;
+    dragLastY.current = e.touches[0].clientY;
+    dragLastTime.current = Date.now();
+    dragVelocity.current = 0;
+    dragCurrentOffset.current = 0;
+  }, []);
+
+  const onHandleTouchMove = useCallback((e) => {
+    if (!isDragging.current) return;
+    const now = Date.now();
+    const clientY = e.touches[0].clientY;
+    const dt = now - dragLastTime.current;
+    if (dt > 0) dragVelocity.current = (clientY - dragLastY.current) / dt * 1000;
+    dragLastY.current = clientY;
+    dragLastTime.current = now;
+
+    const offset = Math.max(0, clientY - dragStartY.current);
+    dragCurrentOffset.current = offset;
+
+    // Tie backdrop alpha to drag progress
+    const sheetH = sheetRef.current?.offsetHeight || 400;
+    const progress = Math.max(0, 1 - offset / sheetH);
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    backdropRef.current?.style.setProperty('--sheet-bg-a', String((isDark ? 0.72 : 0.25) * progress));
+
+    if (dragRafId.current) cancelAnimationFrame(dragRafId.current);
+    dragRafId.current = requestAnimationFrame(() => setDragOffset(offset));
+  }, []);
+
+  const onHandleTouchEnd = useCallback(() => {
+    if (!isDragging.current) return;
+    isDragging.current = false;
+    const sheetH = sheetRef.current?.offsetHeight || 400;
+
+    if (dragVelocity.current > 500 || dragCurrentOffset.current > sheetH * 0.4) {
+      // Flick or crossed 40% threshold → close with CSS transition
+      closeSheet();
+    } else {
+      // Snap back: CSS transition animates from current position to translateY(0)
+      setDragOffset(null);
+      backdropRef.current?.style.removeProperty('--sheet-bg-a');
+    }
+  }, [closeSheet]);
+
+  const sheetStyle = dragOffset !== null
+    ? { transform: `translateY(${dragOffset}px)`, transition: 'none' }
+    : {};
+
+  return (
+    <BottomSheetClose.Provider value={closeSheet}>
+      <div
+        ref={backdropRef}
+        className={`sheet-backdrop${isOpen ? ' sheet-backdrop--open' : ''}`}
+        onClick={backdropDismissible ? closeSheet : undefined}
+      >
+        <div
+          ref={sheetRef}
+          className={`sheet${sheetClassName ? ' ' + sheetClassName : ''}`}
+          style={sheetStyle}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div
+            className="sheet__handle"
+            onTouchStart={onHandleTouchStart}
+            onTouchMove={onHandleTouchMove}
+            onTouchEnd={onHandleTouchEnd}
+          />
+          {children}
+        </div>
+      </div>
+    </BottomSheetClose.Provider>
+  );
+}
+
 function DetailSheet({ item, type, onClose, onCreateMatch }) {
   const t = useT();
   const isReceived = type === 'received';
@@ -425,47 +574,44 @@ function DetailSheet({ item, type, onClose, onCreateMatch }) {
   const statusInfo = TX_STATUS_DISPLAY[item.status];
 
   return (
-    <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet" onClick={(event) => event.stopPropagation()}>
-        <div className="sheet__handle" />
-        <div className="sheet__title">{isReceived ? t('detail.received') : t('detail.sent')}</div>
-        <p className="sheet__sub">{`${isReceived ? t('common.from') : t('common.to')} ${item.name}`}</p>
+    <BottomSheet onClose={onClose}>
+      <div className="sheet__title">{isReceived ? t('detail.received') : t('detail.sent')}</div>
+      <p className="sheet__sub">{`${isReceived ? t('common.from') : t('common.to')} ${item.name}`}</p>
 
-        <div className="detail-row">
-          <span className="detail-row__label">{t('common.amount')}</span>
-          <span className="detail-row__value detail-row__value--big" style={{ color }}>
-            {sign}{item.currencySymbol}{item.amount.toLocaleString()}
-          </span>
-        </div>
-        <div className="detail-row">
-          <span className="detail-row__label">{t('common.methods')}</span>
-          <span className="detail-row__value">{item.methods.length ? item.methods.join(', ') : '—'}</span>
-        </div>
-        {item.reference && (
-          <div className="detail-row">
-            <span className="detail-row__label">{t('common.reference')}</span>
-            <span className="detail-row__value" style={{ fontVariantNumeric: 'tabular-nums' }}>
-              {item.reference}
-            </span>
-          </div>
-        )}
-        <div className="detail-row">
-          <span className="detail-row__label">{t('common.status')}</span>
-          <span className="detail-row__value" style={{ color: statusInfo?.color ?? 'var(--muted)' }}>
-            {statusInfo ? t(statusInfo.labelKey) : String(item.status ?? '?')}
-          </span>
-        </div>
-
-        <div className="sheet-actions">
-          <button type="button" className="btn btn--ghost" onClick={onClose}>{t('common.close')}</button>
-          {onCreateMatch && (
-            <button type="button" className="btn btn--primary" onClick={onCreateMatch}>
-              {t('detail.createMatch')}
-            </button>
-          )}
-        </div>
+      <div className="detail-row">
+        <span className="detail-row__label">{t('common.amount')}</span>
+        <span className="detail-row__value detail-row__value--big" style={{ color }}>
+          {sign}{item.currencySymbol}{item.amount.toLocaleString()}
+        </span>
       </div>
-    </div>
+      <div className="detail-row">
+        <span className="detail-row__label">{t('common.methods')}</span>
+        <span className="detail-row__value">{item.methods.length ? item.methods.join(', ') : '—'}</span>
+      </div>
+      {item.reference && (
+        <div className="detail-row">
+          <span className="detail-row__label">{t('common.reference')}</span>
+          <span className="detail-row__value" style={{ fontVariantNumeric: 'tabular-nums' }}>
+            {item.reference}
+          </span>
+        </div>
+      )}
+      <div className="detail-row">
+        <span className="detail-row__label">{t('common.status')}</span>
+        <span className="detail-row__value" style={{ color: statusInfo?.color ?? 'var(--muted)' }}>
+          {statusInfo ? t(statusInfo.labelKey) : String(item.status ?? '?')}
+        </span>
+      </div>
+
+      <div className="sheet-actions">
+        <button type="button" className="btn btn--ghost" onClick={onClose}>{t('common.close')}</button>
+        {onCreateMatch && (
+          <button type="button" className="btn btn--primary" onClick={onCreateMatch}>
+            {t('detail.createMatch')}
+          </button>
+        )}
+      </div>
+    </BottomSheet>
   );
 }
 
@@ -489,46 +635,43 @@ function MatchConfirmSheet({ item, userDirection, onClose, onConfirmed }) {
   }
 
   return (
-    <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="sheet__handle" />
-        <div className="sheet__title">{t('confirmSheet.title')}</div>
-        <p className="sheet__sub">
-          {isSend ? t('confirmSheet.youSend', { name: item.name }) : t('confirmSheet.youRecv', { name: item.name })} · {t('confirmSheet.via', { method: item.method })}
-        </p>
+    <BottomSheet onClose={onClose}>
+      <div className="sheet__title">{t('confirmSheet.title')}</div>
+      <p className="sheet__sub">
+        {isSend ? t('confirmSheet.youSend', { name: item.name }) : t('confirmSheet.youRecv', { name: item.name })} · {t('confirmSheet.via', { method: item.method })}
+      </p>
 
-        <div className="detail-row">
-          <span className="detail-row__label">{t('common.amount')}</span>
-          <span className="detail-row__value detail-row__value--big" style={{ color: amountColor }}>
-            {sign}€{item.amount.toLocaleString()}
-          </span>
-        </div>
-        <div className="detail-row">
-          <span className="detail-row__label">{t('common.rate')}</span>
-          <span className="detail-row__value">{item.rate.toLocaleString()} T</span>
-        </div>
-        <div className="detail-row">
-          <span className="detail-row__label">{t('common.methods')}</span>
-          <span className="detail-row__value">{item.method}</span>
-        </div>
-        <div className="detail-row">
-          <span className="detail-row__label">{t('common.userLevel')}</span>
-          <span className="detail-row__value">
-            {t('confirmSheet.level', { n: item.level })}
-            {item.trusted && <span className="match-card__trust" style={{ marginLeft: 6 }}>Trust</span>}
-          </span>
-        </div>
-
-        <div className="sheet-actions">
-          <button type="button" className="btn btn--ghost" onClick={onClose} disabled={loading}>
-            {t('common.cancel')}
-          </button>
-          <button type="button" className="btn btn--primary" onClick={handleConfirm} disabled={loading}>
-            {loading ? t('confirmSheet.busy') : t('confirmSheet.btn')}
-          </button>
-        </div>
+      <div className="detail-row">
+        <span className="detail-row__label">{t('common.amount')}</span>
+        <span className="detail-row__value detail-row__value--big" style={{ color: amountColor }}>
+          {sign}€{item.amount.toLocaleString()}
+        </span>
       </div>
-    </div>
+      <div className="detail-row">
+        <span className="detail-row__label">{t('common.rate')}</span>
+        <span className="detail-row__value">{item.rate.toLocaleString()} T</span>
+      </div>
+      <div className="detail-row">
+        <span className="detail-row__label">{t('common.methods')}</span>
+        <span className="detail-row__value">{item.method}</span>
+      </div>
+      <div className="detail-row">
+        <span className="detail-row__label">{t('common.userLevel')}</span>
+        <span className="detail-row__value">
+          {t('confirmSheet.level', { n: item.level })}
+          {item.trusted && <span className="match-card__trust" style={{ marginLeft: 6 }}>Trust</span>}
+        </span>
+      </div>
+
+      <div className="sheet-actions">
+        <button type="button" className="btn btn--ghost" onClick={onClose} disabled={loading}>
+          {t('common.cancel')}
+        </button>
+        <button type="button" className="btn btn--primary" onClick={handleConfirm} disabled={loading}>
+          {loading ? t('confirmSheet.busy') : t('confirmSheet.btn')}
+        </button>
+      </div>
+    </BottomSheet>
   );
 }
 
@@ -539,57 +682,54 @@ function BrowseDetailModal({ item, myDirection, onClose, onMatch }) {
   const otherType = myDirection === 'send' ? t('common.receive') : t('common.send');
 
   return (
-    <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="sheet__handle" />
-        <div className="sheet__title">{t('browse.title')}</div>
-        <p className="sheet__sub">{otherType} · {currSym}{item.amount.toLocaleString()}</p>
+    <BottomSheet onClose={onClose}>
+      <div className="sheet__title">{t('browse.title')}</div>
+      <p className="sheet__sub">{otherType} · {currSym}{item.amount.toLocaleString()}</p>
 
-        <div className="match-card__top" style={{ paddingBottom: 16 }}>
-          <div className="match-card__avatar" aria-hidden="true">{item.initials}</div>
-          <div className="match-card__info">
-            <div className="match-card__name-row">
-              <span className="match-card__name">{item.name}</span>
-              {item.trusted && (
-                <span className="match-card__trust" aria-label="Trusted">
-                  <svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">
-                    <path d="M5 0.5L6.18 3.32L9.24 3.55L7.04 5.44L7.73 8.45L5 6.8L2.27 8.45L2.96 5.44L0.76 3.55L3.82 3.32L5 0.5Z"/>
-                  </svg>
-                  Trust
-                </span>
-              )}
-            </div>
-            <div className="match-card__meta">
-              <span className="match-card__level">{item.levelTitle}</span>
-            </div>
+      <div className="match-card__top" style={{ paddingBottom: 16 }}>
+        <div className="match-card__avatar" aria-hidden="true">{item.initials}</div>
+        <div className="match-card__info">
+          <div className="match-card__name-row">
+            <span className="match-card__name">{item.name}</span>
+            {item.trusted && (
+              <span className="match-card__trust" aria-label="Trusted">
+                <svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">
+                  <path d="M5 0.5L6.18 3.32L9.24 3.55L7.04 5.44L7.73 8.45L5 6.8L2.27 8.45L2.96 5.44L0.76 3.55L3.82 3.32L5 0.5Z"/>
+                </svg>
+                Trust
+              </span>
+            )}
+          </div>
+          <div className="match-card__meta">
+            <span className="match-card__level">{item.levelTitle}</span>
           </div>
         </div>
-
-        <div className="detail-row">
-          <span className="detail-row__label">{t('common.amount')}</span>
-          <span className="detail-row__value detail-row__value--big">{currSym}{item.amount.toLocaleString()}</span>
-        </div>
-        <div className="detail-row">
-          <span className="detail-row__label">{t('common.rate')}</span>
-          <span className="detail-row__value">{item.rate.toLocaleString()} T</span>
-        </div>
-        <div className="detail-row">
-          <span className="detail-row__label">{t('common.methods')}</span>
-          <span className="detail-row__value">{(item.paymentMethods ?? []).join(', ') || '—'}</span>
-        </div>
-        <div className="detail-row">
-          <span className="detail-row__label">{t('common.posted')}</span>
-          <span className="detail-row__value">{fmtDate(item.date)}</span>
-        </div>
-
-        <div className="sheet-actions">
-          <button type="button" className="btn btn--ghost" onClick={onClose}>{t('common.close')}</button>
-          <button type="button" className="btn btn--primary" onClick={onMatch}>
-            {t('browse.matchBtn')}
-          </button>
-        </div>
       </div>
-    </div>
+
+      <div className="detail-row">
+        <span className="detail-row__label">{t('common.amount')}</span>
+        <span className="detail-row__value detail-row__value--big">{currSym}{item.amount.toLocaleString()}</span>
+      </div>
+      <div className="detail-row">
+        <span className="detail-row__label">{t('common.rate')}</span>
+        <span className="detail-row__value">{item.rate.toLocaleString()} T</span>
+      </div>
+      <div className="detail-row">
+        <span className="detail-row__label">{t('common.methods')}</span>
+        <span className="detail-row__value">{(item.paymentMethods ?? []).join(', ') || '—'}</span>
+      </div>
+      <div className="detail-row">
+        <span className="detail-row__label">{t('common.posted')}</span>
+        <span className="detail-row__value">{fmtDate(item.date)}</span>
+      </div>
+
+      <div className="sheet-actions">
+        <button type="button" className="btn btn--ghost" onClick={onClose}>{t('common.close')}</button>
+        <button type="button" className="btn btn--primary" onClick={onMatch}>
+          {t('browse.matchBtn')}
+        </button>
+      </div>
+    </BottomSheet>
   );
 }
 
@@ -704,9 +844,7 @@ function MatchAccountModal({ item, myDirection, userSentRequests = [], userRecei
     : t('match.receiverSub');
 
   return (
-    <div className="sheet-backdrop" onClick={!submitting ? onClose : undefined}>
-      <div className="sheet exchange-modal" onClick={e => e.stopPropagation()}>
-        <div className="sheet__handle" />
+    <BottomSheet onClose={onClose} backdropDismissible={!submitting} sheetClassName="exchange-modal">
         <div className="sheet__title">{title}</div>
         <p className="sheet__sub">{subtitle}</p>
 
@@ -798,8 +936,7 @@ function MatchAccountModal({ item, myDirection, userSentRequests = [], userRecei
             {submitting ? t('match.creating') : mode === 'confirm' ? t('match.confirmBtn') : t('match.matchBtn')}
           </button>
         </div>
-      </div>
-    </div>
+    </BottomSheet>
   );
 }
 
@@ -843,69 +980,66 @@ function DirectMatchModal({ item, itemType, onClose, onMatched }) {
   };
 
   return (
-    <div className="sheet-backdrop" onClick={!matching ? onClose : undefined}>
-      <div className="sheet exchange-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="sheet__handle" />
-        <div className="sheet__title">{t('direct.title')}</div>
-        <p className="sheet__sub">{t('direct.sub', { type: itemType })}</p>
+    <BottomSheet onClose={onClose} backdropDismissible={!matching} sheetClassName="exchange-modal">
+      <div className="sheet__title">{t('direct.title')}</div>
+      <p className="sheet__sub">{t('direct.sub', { type: itemType })}</p>
 
-        <div className="exchange-summary">
-          <div className="exchange-summary__row">
-            <span>{currSym}{item.amount.toLocaleString()}</span>
-            <span className="exchange-summary__eq">@</span>
-            <span>{(item.rate ?? 0).toLocaleString()} T</span>
-          </div>
-        </div>
-
-        {loadingSearch ? (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
-            <div className="kyc-loading-spinner">
-              <svg width="40" height="40" viewBox="0 0 52 52" fill="none">
-                <circle cx="26" cy="26" r="22" stroke="var(--amber)" strokeOpacity="0.15" strokeWidth="4" />
-                <path d="M26 4a22 22 0 0 1 22 22" stroke="var(--amber-deep)" strokeWidth="4" strokeLinecap="round" />
-              </svg>
-            </div>
-          </div>
-        ) : results.length === 0 ? (
-          <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 14, padding: '24px 0' }}>
-            {t('direct.noResults')}
-          </p>
-        ) : (
-          <div className="exchange-modal__section">
-            <div className="rcv-list">
-              {results.map((r) => {
-                const isSel = selected?.requestId === r.requestId;
-                const initials = (r.userDisplayName ?? '?').split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2);
-                return (
-                  <button key={r.requestId} type="button"
-                    className={`rcv-item${isSel ? ' rcv-item--selected' : ''}`}
-                    onClick={() => setSelected(r)}>
-                    <span className="rcv-item__radio" aria-hidden="true">
-                      {isSel
-                        ? <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8.25" stroke="currentColor" strokeWidth="1.5"/><circle cx="9" cy="9" r="4.5" fill="currentColor"/></svg>
-                        : <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8.25" stroke="currentColor" strokeWidth="1.5"/></svg>}
-                    </span>
-                    <span className="rcv-item__info">
-                      <span className="rcv-item__name">{initials} · {r.userDisplayName} {r.isTrusted ? '★' : ''}</span>
-                      <span className="rcv-item__iban">
-                        {currSym}{(r.amount ?? 0).toLocaleString()} @ {(r.rateValue ?? 0).toLocaleString()} T · {(r.paymentMethods ?? []).join(', ')}
-                      </span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        <div className="sheet-actions">
-          <button type="button" className="btn btn--ghost" onClick={onClose} disabled={matching}>{t('common.cancel')}</button>
-          <button type="button" className="btn btn--primary" disabled={!selected || matching} onClick={handleMatch}>
-            {matching ? t('direct.busy') : t('direct.btn')}
-          </button>
+      <div className="exchange-summary">
+        <div className="exchange-summary__row">
+          <span>{currSym}{item.amount.toLocaleString()}</span>
+          <span className="exchange-summary__eq">@</span>
+          <span>{(item.rate ?? 0).toLocaleString()} T</span>
         </div>
       </div>
-    </div>
+
+      {loadingSearch ? (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
+          <div className="kyc-loading-spinner">
+            <svg width="40" height="40" viewBox="0 0 52 52" fill="none">
+              <circle cx="26" cy="26" r="22" stroke="var(--amber)" strokeOpacity="0.15" strokeWidth="4" />
+              <path d="M26 4a22 22 0 0 1 22 22" stroke="var(--amber-deep)" strokeWidth="4" strokeLinecap="round" />
+            </svg>
+          </div>
+        </div>
+      ) : results.length === 0 ? (
+        <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 14, padding: '24px 0' }}>
+          {t('direct.noResults')}
+        </p>
+      ) : (
+        <div className="exchange-modal__section">
+          <div className="rcv-list">
+            {results.map((r) => {
+              const isSel = selected?.requestId === r.requestId;
+              const initials = (r.userDisplayName ?? '?').split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2);
+              return (
+                <button key={r.requestId} type="button"
+                  className={`rcv-item${isSel ? ' rcv-item--selected' : ''}`}
+                  onClick={() => setSelected(r)}>
+                  <span className="rcv-item__radio" aria-hidden="true">
+                    {isSel
+                      ? <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8.25" stroke="currentColor" strokeWidth="1.5"/><circle cx="9" cy="9" r="4.5" fill="currentColor"/></svg>
+                      : <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8.25" stroke="currentColor" strokeWidth="1.5"/></svg>}
+                  </span>
+                  <span className="rcv-item__info">
+                    <span className="rcv-item__name">{initials} · {r.userDisplayName} {r.isTrusted ? '★' : ''}</span>
+                    <span className="rcv-item__iban">
+                      {currSym}{(r.amount ?? 0).toLocaleString()} @ {(r.rateValue ?? 0).toLocaleString()} T · {(r.paymentMethods ?? []).join(', ')}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="sheet-actions">
+        <button type="button" className="btn btn--ghost" onClick={onClose} disabled={matching}>{t('common.cancel')}</button>
+        <button type="button" className="btn btn--primary" disabled={!selected || matching} onClick={handleMatch}>
+          {matching ? t('direct.busy') : t('direct.btn')}
+        </button>
+      </div>
+    </BottomSheet>
   );
 }
 
@@ -1143,10 +1277,7 @@ function ExchangeModal({ onClose, onCreated }) {
   };
 
   return (
-    <div className="sheet-backdrop">
-      <div className="sheet exchange-modal">
-        <div className="sheet__handle" />
-
+    <BottomSheet onClose={onClose} backdropDismissible={false} sheetClassName="exchange-modal">
         {step === 1 ? (
           <>
             <div className="sheet__title-row">
@@ -1502,8 +1633,7 @@ function ExchangeModal({ onClose, onCreated }) {
             </div>
           </>
         )}
-      </div>
-    </div>
+    </BottomSheet>
   );
 }
 
