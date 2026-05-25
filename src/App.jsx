@@ -426,7 +426,7 @@ const CURRENCY_SYMBOL = { 0: '€', 1: '$', 2: 'CA$' };
 
 const BottomSheetClose = createContext(null);
 
-function BottomSheet({ onClose, children, backdropDismissible = true, sheetClassName = '' }) {
+function BottomSheet({ onClose, children, backdropDismissible = true, sheetClassName = '', showHandle = true }) {
   const backdropRef = useRef(null);
   const sheetRef = useRef(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -461,18 +461,40 @@ function BottomSheet({ onClose, children, backdropDismissible = true, sheetClass
     setTimeout(onClose, 360);
   }, [onClose]);
 
-  // Keyboard detection: hide tab bar via document class when soft keyboard opens
+  // Keyboard detection: resize the backdrop to match visualViewport so the sheet
+  // stays visible above the keyboard instead of hiding behind it.
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
     const initialHeight = vv.height;
-    const onVVResize = () => {
-      document.documentElement.classList.toggle('keyboard-open', vv.height < initialHeight - 100);
+
+    const update = () => {
+      const keyboardVisible = vv.height < initialHeight - 100;
+      document.documentElement.classList.toggle('keyboard-open', keyboardVisible);
+
+      // Reposition the backdrop to exactly the visible portion of the screen
+      const bd = backdropRef.current;
+      if (bd) {
+        bd.style.top = `${vv.offsetTop}px`;
+        bd.style.height = `${vv.height}px`;
+      }
+      // Clamp sheet max-height to the visible area
+      const sh = sheetRef.current;
+      if (sh) {
+        sh.style.maxHeight = keyboardVisible ? `${vv.height - 32}px` : '';
+      }
     };
-    vv.addEventListener('resize', onVVResize);
+
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
     return () => {
-      vv.removeEventListener('resize', onVVResize);
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
       document.documentElement.classList.remove('keyboard-open');
+      const bd = backdropRef.current;
+      if (bd) { bd.style.removeProperty('top'); bd.style.removeProperty('height'); }
+      const sh = sheetRef.current;
+      if (sh) { sh.style.removeProperty('max-height'); }
     };
   }, []);
 
@@ -553,12 +575,14 @@ function BottomSheet({ onClose, children, backdropDismissible = true, sheetClass
           style={sheetStyle}
           onClick={(e) => e.stopPropagation()}
         >
-          <div
-            className="sheet__handle"
-            onTouchStart={onHandleTouchStart}
-            onTouchMove={onHandleTouchMove}
-            onTouchEnd={onHandleTouchEnd}
-          />
+          {showHandle && (
+            <div
+              className="sheet__handle"
+              onTouchStart={onHandleTouchStart}
+              onTouchMove={onHandleTouchMove}
+              onTouchEnd={onHandleTouchEnd}
+            />
+          )}
           {children}
         </div>
       </div>
@@ -1125,7 +1149,6 @@ function ExchangeModal({ onClose, onCreated }) {
   const [previewData, setPreviewData] = useState(null);
   const [savedReceivers, setSavedReceivers] = useState([]);
   const [submitting, setSubmitting] = useState(false);
-  const [previewLoading, setPreviewLoading] = useState(false);
 
   // Load exchange rates on mount
   useEffect(() => {
@@ -1185,7 +1208,8 @@ function ExchangeModal({ onClose, onCreated }) {
     }
   };
 
-  const step1Valid = !!amount && methods.length > 0 && !!selectedRate;
+  // Step 1: only needs amount + methods; rate is chosen in step 2
+  const step1Valid = !!amount && methods.length > 0;
 
   const foreignValid = methods.every(m => {
     const fields = FOREIGN_ACCOUNT_FIELDS[m] ?? [];
@@ -1193,11 +1217,14 @@ function ExchangeModal({ onClose, onCreated }) {
     return fields.filter(f => !f.optional).every(f => acc[f.id]?.trim());
   });
 
-  const step2Valid = direction === 'receive'
-    ? foreignValid && !submitting
-    : (showNewReceiverForm
-        ? !!(rcvFirstName.trim() && rcvLastName.trim() && rcvNationalId.trim() && rcvMobile.trim() && rcvIban.trim())
-        : !!selectedReceiverId) && !submitting;
+  // Step 2: also needs a rate selection (moved from step 1)
+  const step2Valid = !!selectedRate && !submitting && (
+    direction === 'receive'
+      ? foreignValid
+      : showNewReceiverForm
+          ? !!(rcvFirstName.trim() && rcvLastName.trim() && rcvNationalId.trim() && rcvMobile.trim() && rcvIban.trim())
+          : !!selectedReceiverId
+  );
 
   const setForeignField = (method, fieldId, value) =>
     setForeignAccounts(prev => ({ ...prev, [method]: { ...(prev[method] ?? {}), [fieldId]: value } }));
@@ -1205,36 +1232,10 @@ function ExchangeModal({ onClose, onCreated }) {
   const toggleAccordion = (method) =>
     setOpenAccordions(prev => { const s = new Set(prev); s.has(method) ? s.delete(method) : s.add(method); return s; });
 
-  const amtNum        = previewData?.amount           ?? (parseFloat(amount) || 0);
-  const exchangeAmt   = previewData ? (previewData.amount * (previewData.rateValue || 1)) : 0;
-  const commissionAmt = previewData?.commissionAmount ?? 0;
-  const totalAmt      = previewData?.totalAmount      ?? 0;
-  const rateDisplay   = previewData?.rateValue        ?? (parseFloat(proposedAmount) || 0);
 
-  const handleGoToStep2 = async () => {
-    const amtNum = parseFloat(amount);
-    const rateType = selectedRate === 'bonbast' ? 'Market'
-      : selectedRate === 'urgent'  ? 'Instant'
-      : null;
-
-    if (amtNum && rateType) {
-      setPreviewLoading(true);
-      try {
-        const result = await requestsApi.preview({
-          type: REQUEST_TYPE_ENUM[direction],
-          currency: CURRENCY_ENUM[currency],
-          amount: amtNum,
-          rateType: RATE_TYPE_ENUM[rateType],
-          customRate: null,
-        });
-        setPreviewData(result);
-      } catch {
-        setPreviewData(null);
-      } finally {
-        setPreviewLoading(false);
-      }
-    }
-
+  const handleGoToStep2 = () => {
+    setSelectedRate(null);
+    setPreviewData(null);
     setOpenAccordions(new Set());
     setStep(2);
   };
@@ -1277,14 +1278,13 @@ function ExchangeModal({ onClose, onCreated }) {
   };
 
   return (
-    <BottomSheet onClose={onClose} backdropDismissible={false} sheetClassName="exchange-modal">
+    <BottomSheet onClose={onClose} backdropDismissible={false} sheetClassName="exchange-modal" showHandle={false}>
         {step === 1 ? (
           <>
             <div className="sheet__title-row">
               <div className="sheet__title">{t('exchange.title')}</div>
               <ExchangeHelp />
             </div>
-            <p className="sheet__sub">{t('exchange.sub')}</p>
 
             <div className="exchange-modal__section">
               <div className="seg seg--full" style={{ marginTop: 0 }}>
@@ -1372,6 +1372,31 @@ function ExchangeModal({ onClose, onCreated }) {
               </p>
             </div>
 
+            <div className="sheet-actions">
+              <button type="button" className="btn btn--ghost" onClick={onClose}>{t('common.cancel')}</button>
+              <button
+                type="button"
+                className="btn btn--primary"
+                disabled={!step1Valid}
+                onClick={handleGoToStep2}
+              >
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="6.5" cy="6.5" r="5" />
+                  <path d="M4.5 6.5h4M7 4.5l2 2-2 2" />
+                </svg>
+                {t('exchange.step1Btn')}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="sheet__title">
+              {direction === 'receive' ? t('exchange.step2TitleReceive') : t('exchange.step2TitleSend')}
+            </div>
+            <p className="sheet__sub">
+              {direction === 'receive' ? t('exchange.step2SubReceive') : t('exchange.step2SubSend')}
+            </p>
+
             <div className="exchange-modal__section">
               <div className="rate-options">
                 <button
@@ -1406,50 +1431,6 @@ function ExchangeModal({ onClose, onCreated }) {
                     <span className="rate-option__desc">{lang === 'fa' ? '۳٪ تا ۶٪، حداکثر ۱ ساعت' : '3% – 6%, max 1 hour'}</span>
                   </span>
                 </button>
-              </div>
-            </div>
-
-            <div className="sheet-actions">
-              <button type="button" className="btn btn--ghost" onClick={onClose}>{t('common.cancel')}</button>
-              <button
-                type="button"
-                className="btn btn--primary"
-                disabled={!step1Valid || previewLoading}
-                onClick={handleGoToStep2}
-              >
-                <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="6.5" cy="6.5" r="5" />
-                  <path d="M4.5 6.5h4M7 4.5l2 2-2 2" />
-                </svg>
-                {previewLoading ? t('exchange.step1Loading') : t('exchange.step1Btn')}
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="sheet__title">
-              {direction === 'receive' ? t('exchange.step2TitleReceive') : t('exchange.step2TitleSend')}
-            </div>
-            <p className="sheet__sub">
-              {direction === 'receive' ? t('exchange.step2SubReceive') : t('exchange.step2SubSend')}
-            </p>
-
-            <div className="exchange-summary">
-              <div className="exchange-summary__row">
-                <span>{amtNum.toLocaleString()} {currSymbol}</span>
-                <span className="exchange-summary__eq">{'×'}</span>
-                <span>{rateDisplay.toLocaleString()}</span>
-              </div>
-              <div className="exchange-summary__row exchange-summary__row--commission">
-                <span>{previewData ? t('exchange.commissionFmt', { pct: previewData.commissionPercent }) : t('exchange.commission')}</span>
-                <span className="exchange-summary__eq">{'='}</span>
-                <span>{commissionAmt.toLocaleString()}</span>
-              </div>
-              <div className="exchange-summary__divider" />
-              <div className="exchange-summary__row exchange-summary__row--total">
-                <span>{t('exchange.total')}</span>
-                <span className="exchange-summary__eq">{'='}</span>
-                <span>{totalAmt.toLocaleString()}</span>
               </div>
             </div>
 
