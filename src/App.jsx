@@ -2878,7 +2878,7 @@ function daysLeft(expiresAt) {
   return Math.round((exp - now) / 86400000);
 }
 
-const MatchingCard = memo(function MatchingCard({ item, onUploadScreenshot, onConfirm, onSettle }) {
+const MatchingCard = memo(function MatchingCard({ item, onTap }) {
   const t = useT();
   const isSend = item.direction === 'send';
   const amountColor = isSend ? 'var(--amber-deep)' : 'var(--leaf-deep)';
@@ -2892,14 +2892,14 @@ const MatchingCard = memo(function MatchingCard({ item, onUploadScreenshot, onCo
   const expiryLabel = left > 0 ? t('expiry.dLeft', { n: left }) : left === 0 ? t('expiry.today') : t('expiry.expired');
 
   const txStatus = item.transactionStatus;
-  const canUpload  = isSend  && txStatus === 0;
-  const canConfirm = !isSend && txStatus === 1;
-  const canSettle  = txStatus === 2;
-  const isSettled  = txStatus === 3;
-  const isDisputed = txStatus === 4;
+  const hasPendingAction = txStatus === 0 || txStatus === 1 || txStatus === 2;
 
   return (
-    <article className={`match-card matching-card matching-card--${item.direction}`}>
+    <article
+      className={`match-card matching-card matching-card--${item.direction}`}
+      onClick={() => onTap?.(item)}
+      style={{ cursor: 'pointer' }}
+    >
       <div className="match-card__top">
         <div className="match-card__avatar" aria-hidden="true">{initials}</div>
 
@@ -2945,13 +2945,98 @@ const MatchingCard = memo(function MatchingCard({ item, onUploadScreenshot, onCo
             <span className="matching-card__date-val">{fmtDate(item.matchDate)}</span>
           </span>
         </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {hasPendingAction && (
+            <span className="matching-expiry matching-expiry--warn" style={{ fontSize: 10 }}>
+              {t('matching.actionRequired')}
+            </span>
+          )}
+          <span className={`matching-expiry ${expiryCls}`}>{expiryLabel}</span>
+        </div>
+      </div>
+    </article>
+  );
+});
+
+const MatchDetailSheet = memo(function MatchDetailSheet({ item, onClose, onUploadScreenshot, onConfirm, onSettle }) {
+  const t = useT();
+  if (!item) return null;
+
+  const isSend = item.direction === 'send';
+  const amountColor = isSend ? 'var(--amber-deep)' : 'var(--leaf-deep)';
+  const sign = isSend ? '−' : '+';
+  const cpName = item.counterpart?.name ?? '—';
+  const initials = cpName !== '—'
+    ? cpName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+    : '??';
+  const left = daysLeft(item.expiresAt);
+  const expiryCls = left > 1 ? 'matching-expiry--ok' : left === 1 ? 'matching-expiry--warn' : left === 0 ? 'matching-expiry--urgent' : 'matching-expiry--expired';
+  const expiryLabel = left > 0 ? t('expiry.dLeft', { n: left }) : left === 0 ? t('expiry.today') : t('expiry.expired');
+
+  const txStatus = item.transactionStatus;
+  const canUpload  = isSend  && txStatus === 0;
+  const canConfirm = !isSend && txStatus === 1;
+  const canSettle  = txStatus === 2;
+  const isSettled  = txStatus === 3;
+  const isDisputed = txStatus === 4;
+
+  return (
+    <BottomSheet onClose={onClose}>
+      <div className="sheet__title-row">
+        <div className="sheet__title">{t('matching.detailTitle')}</div>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+        <div className="match-card__avatar" style={{ width: 44, height: 44, fontSize: 16, flexShrink: 0 }} aria-hidden="true">{initials}</div>
+        <div style={{ flex: 1 }}>
+          <div className="match-card__name-row" style={{ marginBottom: 4 }}>
+            <span className="match-card__name">{cpName}</span>
+            {item.counterpart?.trusted && (
+              <span className="match-card__trust" aria-label="Trusted">
+                <svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">
+                  <path d="M5 0.5L6.18 3.32L9.24 3.55L7.04 5.44L7.73 8.45L5 6.8L2.27 8.45L2.96 5.44L0.76 3.55L3.82 3.32L5 0.5Z"/>
+                </svg>
+                Trust
+              </span>
+            )}
+            <span className={`matching-dir matching-dir--${item.direction}`}>
+              {isSend ? t('matching.dirSend') : t('matching.dirReceive')}
+            </span>
+          </div>
+          <div className="match-card__meta">
+            <span className="match-card__level">Lv {item.counterpart?.level ?? 0} · {LEVEL_LABELS[item.counterpart?.level ?? 0]}</span>
+            <span className="match-card__sep" aria-hidden="true" />
+            <span className="match-card__method">{item.counterpart?.method ?? '—'}</span>
+          </div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div className="match-card__amount" style={{ color: amountColor, fontSize: 18, fontWeight: 700 }}>
+            {sign}€{item.amount.toLocaleString()}
+          </div>
+          <div className="match-card__rate" style={{ fontSize: 12, marginTop: 2 }}>{(item.rate ?? 0).toLocaleString()} T</div>
+        </div>
+      </div>
+
+      <div className="matching-card__dates" style={{ marginBottom: 12 }}>
+        <span className="matching-card__date-row">
+          <span className="matching-card__date-label">{t('matching.requested')}</span>
+          <span className="matching-card__date-val">{fmtDate(item.requestDate)}</span>
+        </span>
+        <span className="matching-card__date-sep" aria-hidden="true" />
+        <span className="matching-card__date-row">
+          <span className="matching-card__date-label">{t('matching.matched')}</span>
+          <span className="matching-card__date-val">{fmtDate(item.matchDate)}</span>
+        </span>
+      </div>
+
+      <div style={{ marginBottom: 20 }}>
         <span className={`matching-expiry ${expiryCls}`}>{expiryLabel}</span>
       </div>
 
       {(canUpload || canConfirm || canSettle || isSettled || isDisputed) && (
         <div className="matching-card__actions">
           {canUpload && (
-            <label className="btn btn--primary btn--sm matching-card__action-btn">
+            <label className="btn btn--primary matching-card__action-btn">
               <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M6.5 9V3M4 5.5l2.5-2.5L9 5.5" />
                 <path d="M2 10.5h9" />
@@ -2963,7 +3048,7 @@ const MatchingCard = memo(function MatchingCard({ item, onUploadScreenshot, onCo
                 style={{ display: 'none' }}
                 onChange={(e) => {
                   const f = e.target.files?.[0];
-                  if (f) onUploadScreenshot?.(item.transactionId, f);
+                  if (f) { onUploadScreenshot?.(item.transactionId, f); onClose(); }
                   e.target.value = '';
                 }}
               />
@@ -2972,8 +3057,8 @@ const MatchingCard = memo(function MatchingCard({ item, onUploadScreenshot, onCo
           {canConfirm && (
             <button
               type="button"
-              className="btn btn--primary btn--sm matching-card__action-btn"
-              onClick={() => onConfirm?.(item.transactionId)}
+              className="btn btn--primary matching-card__action-btn"
+              onClick={() => { onConfirm?.(item.transactionId); onClose(); }}
             >
               <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M2 6.5l3 3 6-6" />
@@ -2984,8 +3069,8 @@ const MatchingCard = memo(function MatchingCard({ item, onUploadScreenshot, onCo
           {canSettle && (
             <button
               type="button"
-              className="btn btn--primary btn--sm matching-card__action-btn"
-              onClick={() => onSettle?.(item.transactionId)}
+              className="btn btn--primary matching-card__action-btn"
+              onClick={() => { onSettle?.(item.transactionId); onClose(); }}
             >
               <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M2 6.5l3 3 6-6" />
@@ -3006,12 +3091,13 @@ const MatchingCard = memo(function MatchingCard({ item, onUploadScreenshot, onCo
           )}
         </div>
       )}
-    </article>
+    </BottomSheet>
   );
 });
 
 const MatchingPage = memo(function MatchingPage({ matches, onUploadScreenshot, onConfirm, onSettle }) {
   const t = useT();
+  const [selectedMatch, setSelectedMatch] = useState(null);
   const sends    = matches.filter(m => m.direction === 'send');
   const receives = matches.filter(m => m.direction === 'receive');
 
@@ -3022,9 +3108,7 @@ const MatchingPage = memo(function MatchingPage({ matches, onUploadScreenshot, o
         <MatchingCard
           key={item.id}
           item={item}
-          onUploadScreenshot={onUploadScreenshot}
-          onConfirm={onConfirm}
-          onSettle={onSettle}
+          onTap={setSelectedMatch}
         />
       ))}
     </div>
@@ -3046,10 +3130,21 @@ const MatchingPage = memo(function MatchingPage({ matches, onUploadScreenshot, o
   }
 
   return (
-    <div className="page-scroll matching-page" dir="ltr">
-      <Section title={t('matching.sendSection')} cls="matching-section__title--send" items={sends} />
-      <Section title={t('matching.receiveSection')} cls="matching-section__title--receive" items={receives} />
-    </div>
+    <>
+      <div className="page-scroll matching-page" dir="ltr">
+        <Section title={t('matching.sendSection')} cls="matching-section__title--send" items={sends} />
+        <Section title={t('matching.receiveSection')} cls="matching-section__title--receive" items={receives} />
+      </div>
+      {selectedMatch && (
+        <MatchDetailSheet
+          item={selectedMatch}
+          onClose={() => setSelectedMatch(null)}
+          onUploadScreenshot={onUploadScreenshot}
+          onConfirm={onConfirm}
+          onSettle={onSettle}
+        />
+      )}
+    </>
   );
 });
 
