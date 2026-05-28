@@ -1964,7 +1964,7 @@ const AppTabBar = memo(function AppTabBar({ activePage, onNavigate, onProfile, o
         <span className="p2p-tab__label p2p-tab__label--exchange">{t('tab.exchange')}</span>
       </div>
 
-      <button type="button" className={`p2p-tab ${activePage === 'matches' ? 'is-active' : ''}`} onClick={() => onNavigate('matches')} aria-label={t('tab.ticketing')}>
+      <button type="button" className={`p2p-tab ${activePage === 'ticketing' ? 'is-active' : ''}`} onClick={() => onNavigate('ticketing')} aria-label={t('tab.ticketing')}>
         <svg className="p2p-tab__icon" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
           <path d="M2 9a1 1 0 0 1 1-1h18a1 1 0 0 1 1 1v2a2 2 0 0 0 0 4v2a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-2a2 2 0 0 0 0-4V9z" />
           <line x1="9" y1="8" x2="9" y2="16" strokeDasharray="2 2" />
@@ -3040,6 +3040,217 @@ const MatchDetailSheet = memo(function MatchDetailSheet({ item, onClose, onUploa
   );
 });
 
+function TicketConfirmSheet({ item, onClose, onConfirm, onReject, submitting }) {
+  const t = useT();
+  if (!item) return null;
+
+  const cpName = item.counterpartName ?? '—';
+  const initials = cpName !== '—'
+    ? cpName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+    : '??';
+  const currencySymbol = { EUR: '€', USD: '$', CAD: 'CA$' }[item.currency] ?? item.currency;
+
+  return (
+    <BottomSheet onClose={onClose}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+        <div className="match-card__avatar" style={{ width: 44, height: 44, fontSize: 16, flexShrink: 0 }} aria-hidden="true">{initials}</div>
+        <div style={{ flex: 1 }}>
+          <div className="match-card__name-row" style={{ marginBottom: 4 }}>
+            <span className="match-card__name">{cpName}</span>
+            {item.counterpartIsTrusted && (
+              <span className="match-card__trust" aria-label={t('ticketing.trust')}>
+                <svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">
+                  <path d="M5 0.5L6.18 3.32L9.24 3.55L7.04 5.44L7.73 8.45L5 6.8L2.27 8.45L2.96 5.44L0.76 3.55L3.82 3.32L5 0.5Z"/>
+                </svg>
+                {t('ticketing.trust')}
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>
+            {currencySymbol}{item.amount?.toLocaleString()}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20, fontSize: 13 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ color: 'var(--text-secondary)' }}>{t('ticketing.price')}</span>
+          <span style={{ fontWeight: 600 }}>{item.price?.toLocaleString()} T</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ color: 'var(--text-secondary)' }}>{t('ticketing.priceSetAt')}</span>
+          <span>{fmtDate(item.priceSetAt)}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ color: 'var(--text-secondary)' }}>{t('ticketing.deadline')}</span>
+          <span style={{ color: 'var(--amber-deep)', fontWeight: 600 }}>{fmtDate(item.confirmationDeadline)}</span>
+        </div>
+      </div>
+
+      {item.myConfirmation ? (
+        <div style={{ textAlign: 'center', padding: '12px 0', color: 'var(--leaf-deep)', fontWeight: 600 }}>
+          {t('ticketing.alreadyConfirmed')}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            style={{ flex: 1 }}
+            disabled={submitting}
+            onClick={() => onReject(item.matchId)}
+          >
+            {t('ticketing.reject')}
+          </button>
+          <button
+            type="button"
+            className="btn btn--primary"
+            style={{ flex: 1 }}
+            disabled={submitting}
+            onClick={() => onConfirm(item.matchId)}
+          >
+            {t('ticketing.confirm')}
+          </button>
+        </div>
+      )}
+    </BottomSheet>
+  );
+}
+
+const TicketingPage = memo(function TicketingPage() {
+  const t = useT();
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    matchesApi.getPendingConfirmation()
+      .then(data => setItems(Array.isArray(data) ? data : []))
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleConfirm = useCallback(async (matchId) => {
+    setSubmitting(true);
+    try {
+      await matchesApi.confirm(matchId);
+      setSelected(null);
+      load();
+    } catch {} finally { setSubmitting(false); }
+  }, [load]);
+
+  const handleReject = useCallback(async (matchId) => {
+    setSubmitting(true);
+    try {
+      await matchesApi.reject(matchId);
+      setSelected(null);
+      load();
+    } catch {} finally { setSubmitting(false); }
+  }, [load]);
+
+  if (loading) {
+    return (
+      <div className="page-scroll kyc-status-loading">
+        <div className="kyc-loading-spinner" />
+      </div>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <div className="empty-state" dir="ltr" role="status">
+        <div className="empty-state__card">
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className="empty-state__icon" aria-hidden="true">
+            <path d="M2 9a1 1 0 0 1 1-1h18a1 1 0 0 1 1 1v2a2 2 0 0 0 0 4v2a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-2a2 2 0 0 0 0-4V9z" />
+            <line x1="9" y1="8" x2="9" y2="16" strokeDasharray="2 2" />
+          </svg>
+          <p className="empty-state__text">{t('ticketing.empty')}</p>
+          <p className="empty-state__sub">{t('ticketing.emptySub')}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="page-scroll matching-page" dir="ltr">
+        {items.map(item => {
+          const cpName = item.counterpartName ?? '—';
+          const initials = cpName !== '—'
+            ? cpName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+            : '??';
+          const currencySymbol = { EUR: '€', USD: '$', CAD: 'CA$' }[item.currency] ?? item.currency;
+          const deadline = item.confirmationDeadline;
+          const dLeft = deadline ? daysLeft(deadline) : null;
+          const expiryCls = dLeft == null ? '' : dLeft > 1 ? 'matching-expiry--ok' : dLeft === 1 ? 'matching-expiry--warn' : dLeft === 0 ? 'matching-expiry--urgent' : 'matching-expiry--expired';
+          const expiryLabel = dLeft == null ? '' : dLeft > 0 ? t('expiry.dLeft', { n: dLeft }) : dLeft === 0 ? t('expiry.today') : t('expiry.expired');
+
+          return (
+            <article
+              key={item.matchId}
+              className="match-card matching-card"
+              onClick={() => setSelected(item)}
+              style={{ cursor: 'pointer' }}
+            >
+              <div className="match-card__top">
+                <div className="match-card__avatar" aria-hidden="true">{initials}</div>
+                <div className="match-card__info">
+                  <div className="match-card__name-row">
+                    <span className="match-card__name">{cpName}</span>
+                    {item.counterpartIsTrusted && (
+                      <span className="match-card__trust" aria-label={t('ticketing.trust')}>
+                        <svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">
+                          <path d="M5 0.5L6.18 3.32L9.24 3.55L7.04 5.44L7.73 8.45L5 6.8L2.27 8.45L2.96 5.44L0.76 3.55L3.82 3.32L5 0.5Z"/>
+                        </svg>
+                        {t('ticketing.trust')}
+                      </span>
+                    )}
+                    {item.myConfirmation && (
+                      <span style={{ fontSize: 10, color: 'var(--leaf-deep)', fontWeight: 600 }}>
+                        {t('ticketing.alreadyConfirmed')}
+                      </span>
+                    )}
+                  </div>
+                  <div className="match-card__meta">
+                    <span style={{ fontSize: 12 }}>{t('ticketing.price')}: {item.price?.toLocaleString()} T</span>
+                  </div>
+                </div>
+                <div className="match-card__right">
+                  <span className="match-card__amount" style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
+                    {currencySymbol}{item.amount?.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+              <div className="match-card__footer matching-card__footer">
+                <div className="matching-card__dates">
+                  <span className="matching-card__date-row">
+                    <span className="matching-card__date-label">{t('ticketing.priceSetAt')}</span>
+                    <span className="matching-card__date-val">{fmtDate(item.priceSetAt)}</span>
+                  </span>
+                </div>
+                <span className={`matching-expiry ${expiryCls}`}>{expiryLabel}</span>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+      {selected && (
+        <TicketConfirmSheet
+          item={selected}
+          onClose={() => setSelected(null)}
+          onConfirm={handleConfirm}
+          onReject={handleReject}
+          submitting={submitting}
+        />
+      )}
+    </>
+  );
+});
+
 const MatchingPage = memo(function MatchingPage({ matches, onUploadScreenshot }) {
   const t = useT();
   const [selectedMatch, setSelectedMatch] = useState(null);
@@ -3244,7 +3455,7 @@ export default function App() {
 
   // Load data when tabs are activated
   useEffect(() => {
-    if (activePage === 'home' || activePage === 'matches') loadMatches();
+    if (activePage === 'home') loadMatches();
   }, [activePage, loadMatches]);
 
   useEffect(() => {
@@ -3456,6 +3667,10 @@ export default function App() {
           matches={myMatches}
           onUploadScreenshot={handleUploadScreenshot}
         />
+      )}
+
+      {activePage === 'ticketing' && (
+        <TicketingPage />
       )}
 
       {activePage === 'identity' && (

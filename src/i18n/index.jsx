@@ -76,6 +76,17 @@ const en = {
   'matching.settled':        '✓ Settled',
   'matching.disputed':       '⚠ Disputed',
 
+  // Ticketing page
+  'ticketing.empty':       'No pending confirmations',
+  'ticketing.emptySub':    'Matches awaiting your confirmation will appear here.',
+  'ticketing.price':       'Price',
+  'ticketing.deadline':    'Deadline',
+  'ticketing.priceSetAt':  'Price set at',
+  'ticketing.confirm':     'Confirm',
+  'ticketing.reject':      'Reject',
+  'ticketing.alreadyConfirmed': '✓ You confirmed',
+  'ticketing.trust':       'Trusted',
+
   // Create Match modal
   'match.confirmTitle':    'Confirm Match',
   'match.accountTitle':    'Your Account Details',
@@ -323,6 +334,17 @@ const fa = {
   'matching.settle':         'تسویه',
   'matching.settled':        '✓ تسویه شد',
   'matching.disputed':       '⚠ در اختلاف',
+
+  // Ticketing page
+  'ticketing.empty':       'در انتظار تایید وجود ندارد',
+  'ticketing.emptySub':    'مچ‌هایی که منتظر تایید شما هستند اینجا نمایش داده می‌شوند.',
+  'ticketing.price':       'نرخ',
+  'ticketing.deadline':    'مهلت تایید',
+  'ticketing.priceSetAt':  'زمان ثبت نرخ',
+  'ticketing.confirm':     'تایید',
+  'ticketing.reject':      'رد',
+  'ticketing.alreadyConfirmed': '✓ تایید شده',
+  'ticketing.trust':       'مورد اعتماد',
 
   // Create Match modal
   'match.confirmTitle':    'تأیید مچ',
