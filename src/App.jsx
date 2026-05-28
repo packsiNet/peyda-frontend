@@ -1077,7 +1077,7 @@ const EXCHANGE_METHODS = ['Revolut', 'Zelle', 'PayPal', 'SEPA', 'Wire'];
 
 const CURRENCY_ENUM       = { EUR: 0, USD: 1, CAD: 2 };
 const REQUEST_TYPE_ENUM   = { send: 0, receive: 1 };
-const RATE_TYPE_ENUM      = { Market: 0, Instant: 1, Custom: 2 };
+const PRICE_PREFERENCE_ENUM = { Fair: 0, Urgent: 1 };
 const PAYMENT_METHOD_ENUM = { Revolut: 0, Zelle: 1, PayPal: 2, SEPA: 3, Wire: 4 };
 
 const BONBAST_RATE = 160_000;
@@ -1169,10 +1169,10 @@ function ExchangeModal({ onClose, onCreated }) {
     const amtNum = parseFloat(amount);
     if (!amtNum || !methods.length) { setPreviewData(null); return; }
 
-    const rateType = selectedRate === 'bonbast' ? 'Market'
-      : selectedRate === 'urgent'  ? 'Instant'
+    const pricePreference = selectedRate === 'bonbast' ? 'Fair'
+      : selectedRate === 'urgent'  ? 'Urgent'
       : null;
-    if (!rateType) { setPreviewData(null); return; }
+    if (!pricePreference) { setPreviewData(null); return; }
 
     const timer = setTimeout(async () => {
       try {
@@ -1180,8 +1180,7 @@ function ExchangeModal({ onClose, onCreated }) {
           type: REQUEST_TYPE_ENUM[direction],
           currency: CURRENCY_ENUM[currency],
           amount: amtNum,
-          rateType: RATE_TYPE_ENUM[rateType],
-          customRate: null,
+          pricePreference: PRICE_PREFERENCE_ENUM[pricePreference],
         });
         setPreviewData(result);
       } catch { setPreviewData(null); }
@@ -1255,13 +1254,12 @@ function ExchangeModal({ onClose, onCreated }) {
         });
         receiverId = created?.id;
       }
-      const rateTypeStr = selectedRate === 'bonbast' ? 'Market' : 'Instant';
+      const pricePreferenceStr = selectedRate === 'bonbast' ? 'Fair' : 'Urgent';
       const createPayload = {
         type: REQUEST_TYPE_ENUM[direction],
         currency: CURRENCY_ENUM[currency],
         amount: parseFloat(amount),
-        rateType: RATE_TYPE_ENUM[rateTypeStr],
-        customRate: null,
+        pricePreference: PRICE_PREFERENCE_ENUM[pricePreferenceStr],
         paymentMethods: methods.map((m) => PAYMENT_METHOD_ENUM[m]),
         ...(direction === 'send'
           ? { receiverId }
