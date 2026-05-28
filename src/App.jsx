@@ -2892,11 +2892,11 @@ const MatchingCard = memo(function MatchingCard({ item, onUploadScreenshot, onCo
   const expiryLabel = left > 0 ? t('expiry.dLeft', { n: left }) : left === 0 ? t('expiry.today') : t('expiry.expired');
 
   const txStatus = item.transactionStatus;
-  const canUpload  = isSend  && txStatus === 'Pending';
-  const canConfirm = !isSend && txStatus === 'ScreenshotUploaded';
-  const canSettle  = txStatus === 'Confirmed';
-  const isSettled  = txStatus === 'Settled';
-  const isDisputed = txStatus === 'Disputed';
+  const canUpload  = isSend  && txStatus === 0;
+  const canConfirm = !isSend && txStatus === 1;
+  const canSettle  = txStatus === 2;
+  const isSettled  = txStatus === 3;
+  const isDisputed = txStatus === 4;
 
   return (
     <article className={`match-card matching-card matching-card--${item.direction}`}>
@@ -2929,7 +2929,7 @@ const MatchingCard = memo(function MatchingCard({ item, onUploadScreenshot, onCo
           <span className="match-card__amount" style={{ color: amountColor }}>
             {sign}€{item.amount.toLocaleString()}
           </span>
-          <span className="match-card__rate" style={{ marginTop: 4 }}>{item.rate.toLocaleString()} T</span>
+          <span className="match-card__rate" style={{ marginTop: 4 }}>{(item.rate ?? 0).toLocaleString()} T</span>
         </div>
       </div>
 
@@ -3128,7 +3128,7 @@ export default function App() {
     matchesApi.getMy().then((data) => {
       setMyMatches((data ?? []).map((m) => ({
         id: m.matchId,
-        direction: m.myRequestType === 'Send' ? 'send' : 'receive',
+        direction: m.myRequestType === 0 ? 'send' : 'receive',
         counterpart: {
           name:    m.counterpartDisplayName,
           level:   m.counterpartLevel,
@@ -3136,7 +3136,7 @@ export default function App() {
           method:  m.counterpartPaymentMethods?.[0] ?? '—',
         },
         amount:            m.amount,
-        rate:              m.rateValue,
+        rate:              m.matchPrice,
         requestDate:       m.requestDate,
         matchDate:         m.matchDate,
         expiresAt:         m.expiresAt,
