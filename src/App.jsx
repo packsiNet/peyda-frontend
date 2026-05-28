@@ -2891,8 +2891,6 @@ const MatchingCard = memo(function MatchingCard({ item, onTap }) {
   const expiryCls = left > 1 ? 'matching-expiry--ok' : left === 1 ? 'matching-expiry--warn' : left === 0 ? 'matching-expiry--urgent' : 'matching-expiry--expired';
   const expiryLabel = left > 0 ? t('expiry.dLeft', { n: left }) : left === 0 ? t('expiry.today') : t('expiry.expired');
 
-  const txStatus = item.transactionStatus;
-  const hasPendingAction = txStatus === 0 || txStatus === 1 || txStatus === 2;
 
   return (
     <article
@@ -2945,20 +2943,13 @@ const MatchingCard = memo(function MatchingCard({ item, onTap }) {
             <span className="matching-card__date-val">{fmtDate(item.matchDate)}</span>
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {hasPendingAction && (
-            <span className="matching-expiry matching-expiry--warn" style={{ fontSize: 10 }}>
-              {t('matching.actionRequired')}
-            </span>
-          )}
-          <span className={`matching-expiry ${expiryCls}`}>{expiryLabel}</span>
-        </div>
+        <span className={`matching-expiry ${expiryCls}`}>{expiryLabel}</span>
       </div>
     </article>
   );
 });
 
-const MatchDetailSheet = memo(function MatchDetailSheet({ item, onClose, onUploadScreenshot, onConfirm, onSettle }) {
+const MatchDetailSheet = memo(function MatchDetailSheet({ item, onClose, onUploadScreenshot }) {
   const t = useT();
   if (!item) return null;
 
@@ -2973,19 +2964,10 @@ const MatchDetailSheet = memo(function MatchDetailSheet({ item, onClose, onUploa
   const expiryCls = left > 1 ? 'matching-expiry--ok' : left === 1 ? 'matching-expiry--warn' : left === 0 ? 'matching-expiry--urgent' : 'matching-expiry--expired';
   const expiryLabel = left > 0 ? t('expiry.dLeft', { n: left }) : left === 0 ? t('expiry.today') : t('expiry.expired');
 
-  const txStatus = item.transactionStatus;
-  const canUpload  = isSend  && txStatus === 0;
-  const canConfirm = !isSend && txStatus === 1;
-  const canSettle  = txStatus === 2;
-  const isSettled  = txStatus === 3;
-  const isDisputed = txStatus === 4;
+  const canUpload = isSend && item.transactionStatus === 0;
 
   return (
     <BottomSheet onClose={onClose}>
-      <div className="sheet__title-row">
-        <div className="sheet__title">{t('matching.detailTitle')}</div>
-      </div>
-
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
         <div className="match-card__avatar" style={{ width: 44, height: 44, fontSize: 16, flexShrink: 0 }} aria-hidden="true">{initials}</div>
         <div style={{ flex: 1 }}>
@@ -3033,69 +3015,32 @@ const MatchDetailSheet = memo(function MatchDetailSheet({ item, onClose, onUploa
         <span className={`matching-expiry ${expiryCls}`}>{expiryLabel}</span>
       </div>
 
-      {(canUpload || canConfirm || canSettle || isSettled || isDisputed) && (
+      {canUpload && (
         <div className="matching-card__actions">
-          {canUpload && (
-            <label className="btn btn--primary matching-card__action-btn">
-              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M6.5 9V3M4 5.5l2.5-2.5L9 5.5" />
-                <path d="M2 10.5h9" />
-              </svg>
-              {t('matching.uploadReceipt')}
-              <input
-                type="file"
-                accept="image/*"
-                style={{ display: 'none' }}
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) { onUploadScreenshot?.(item.transactionId, f); onClose(); }
-                  e.target.value = '';
-                }}
-              />
-            </label>
-          )}
-          {canConfirm && (
-            <button
-              type="button"
-              className="btn btn--primary matching-card__action-btn"
-              onClick={() => { onConfirm?.(item.transactionId); onClose(); }}
-            >
-              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M2 6.5l3 3 6-6" />
-              </svg>
-              {t('matching.confirmReceipt')}
-            </button>
-          )}
-          {canSettle && (
-            <button
-              type="button"
-              className="btn btn--primary matching-card__action-btn"
-              onClick={() => { onSettle?.(item.transactionId); onClose(); }}
-            >
-              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M2 6.5l3 3 6-6" />
-                <path d="M9 2.5v8" />
-              </svg>
-              {t('matching.settle')}
-            </button>
-          )}
-          {isSettled && (
-            <span className="matching-card__status-badge matching-card__status-badge--settled">
-              {t('matching.settled')}
-            </span>
-          )}
-          {isDisputed && (
-            <span className="matching-card__status-badge matching-card__status-badge--disputed">
-              {t('matching.disputed')}
-            </span>
-          )}
+          <label className="btn btn--primary matching-card__action-btn">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M6.5 9V3M4 5.5l2.5-2.5L9 5.5" />
+              <path d="M2 10.5h9" />
+            </svg>
+            {t('matching.uploadReceipt')}
+            <input
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) { onUploadScreenshot?.(item.transactionId, f); onClose(); }
+                e.target.value = '';
+              }}
+            />
+          </label>
         </div>
       )}
     </BottomSheet>
   );
 });
 
-const MatchingPage = memo(function MatchingPage({ matches, onUploadScreenshot, onConfirm, onSettle }) {
+const MatchingPage = memo(function MatchingPage({ matches, onUploadScreenshot }) {
   const t = useT();
   const [selectedMatch, setSelectedMatch] = useState(null);
   const sends    = matches.filter(m => m.direction === 'send');
@@ -3140,8 +3085,6 @@ const MatchingPage = memo(function MatchingPage({ matches, onUploadScreenshot, o
           item={selectedMatch}
           onClose={() => setSelectedMatch(null)}
           onUploadScreenshot={onUploadScreenshot}
-          onConfirm={onConfirm}
-          onSettle={onSettle}
         />
       )}
     </>
@@ -3512,8 +3455,6 @@ export default function App() {
         <MatchingPage
           matches={myMatches}
           onUploadScreenshot={handleUploadScreenshot}
-          onConfirm={handleConfirmReceipt}
-          onSettle={handleSettle}
         />
       )}
 
